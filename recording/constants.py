@@ -1,8 +1,3 @@
-import recording.exceptions
-
-ReadOnlyError = recording.exceptions.ReadOnlyError
-
-
 class EventType:
     """
     The event type enumeration contain the constants to identify the type of event that was recorded.
