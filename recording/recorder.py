@@ -1,9 +1,12 @@
 from __future__ import print_function
-import recording.constants as constants
 import datetime
 import threading
+
 import pyHook
+
 import pythoncom
+
+import recording.constants as constants
 import recording.exceptions as exceptions
 
 ArgumentError = exceptions.ArgumentError
