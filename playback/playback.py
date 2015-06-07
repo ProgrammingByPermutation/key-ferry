@@ -17,7 +17,7 @@ class WindowsPlaybackManager:
         Initializes a new instance of the WindowsPlaybackManager class.
         :param events: The list of events to playback
         """
-        if events.__len__() <= 0:
+        if len(events) <= 0:
             return
 
         self.__listener = recorder.WindowsListener([self])
@@ -59,7 +59,7 @@ class WindowsPlaybackManager:
 
         # If our index exceed our list, we're done here. The timer will not start itself again.
         # Otherwise, increment to the next event and reset the timer
-        if self.__events.__len__() > self.__index:
+        if len(self.__events) > self.__index:
             self.__curr_event = self.__events[self.__index]
             self.__timer = threading.Timer(self.__curr_event.Time, WindowsPlaybackManager.__on_timer_tick, args=(self,))
             self.__timer.start()

@@ -22,7 +22,7 @@ class WindowsListener:
         """
 
         # Check that we received listeners
-        if None == listeners or 0 == listeners.__len__():
+        if None == listeners or 0 == len(listeners):
             raise (ArgumentError, "listeners cannot be None")
 
         # Check that listeners have the correct contract

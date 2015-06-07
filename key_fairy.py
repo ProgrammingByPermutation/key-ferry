@@ -6,13 +6,11 @@ import os
 EventType = constants.EventType
 
 while True:
-    help(recorder.WindowsListener)
     rec = recorder.WindowsRecorder()
-    help(rec)
     os.system('notepad')
     rec.disconnect()
 
-    print('Number of events: ' + str(rec.events.__len__()))
+    print('Number of events: ' + str(len(rec.events)))
 
     # print('-' * 80)
     # for x in rec.events:
