@@ -5,6 +5,7 @@ import win32api
 
 import pyHook
 import win32con
+
 import pythoncom
 
 import recording.constants as constants
@@ -23,12 +24,12 @@ class WindowsListener:
         """
         Initializes a new instance of the WindowsListener class.
         """
-        # TODO: Supposedly we can handle this much better use a metaclass. Should revisit once I understand them.
+        # TODO: Supposedly we can handle this much better using a metaclass. Should revisit once I understand them.
         if not self.__initialized:
             self.__initialized = True
             self.__listeners = []
             self.__connected = False
-            self.__thread = threading.Thread(target=self.__start_thread)
+            self.__thread = threading.Thread(target=self.__thread_target, name='Hook Manager\'s Thread')
             self.__thread.start()
 
     def __new__(cls, *args, **kwargs):
@@ -44,9 +45,9 @@ class WindowsListener:
             cls.__initialized = False
         return cls.__instance
 
-    def __start_thread(self):
+    def __thread_target(self):
         """
-        Starts a new thread that will wait for keyboard and mouse events to occur globally.
+        Hook Manager thread's logic responsible for receiving inputs from the keyboard and mouse.
         """
 
         # Save thread identifier
