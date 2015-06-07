@@ -30,6 +30,7 @@ while True:
     play.release()
     rec.events.clear()
 
+    # TODO: Combine keyboard events together to save space
     # TODO: Fix special keys (shift, alt, ctrl) they're currently state swapping permanently
 
     # Text to speech that made me laugh
