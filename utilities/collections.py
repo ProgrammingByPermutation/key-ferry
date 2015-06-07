@@ -83,13 +83,13 @@ class LinkedList:
 
         if prev_node is None:
             if self.head != node:
-                raise (RuntimeError, "Node contained no previous node and was not the head of the list.")
+                raise RuntimeError("Node contained no previous node and was not the head of the list.")
             self.head = next_node
             next_node.prev = None
 
         elif next_node is None:
             if self.tail != node:
-                raise (RuntimeError, "Node contained no next node and was not the tail of the list.")
+                raise RuntimeError("Node contained no next node and was not the tail of the list.")
             self.tail = prev_node
             prev_node.next = None
 
@@ -110,7 +110,7 @@ class LinkedList:
 
         if prev_node is None:
             if self.head != before:
-                raise (RuntimeError, "Before contained no previous node and was not the head of the list.")
+                raise RuntimeError("Before contained no previous node and was not the head of the list.")
             self.head.prev = node
             self.head = node
             node.prev = None
@@ -194,7 +194,6 @@ if __name__ == "__main__":
     print('-' * 20 + 'Remove Head' + '-' * 20)
     curr_node = linked_list.head
     linked_list.remove_node(curr_node)
-    print('curr_node: ' + str(curr_node.value) + ' next: ' + str(curr_node.next) + ' prev: ' + str(curr_node.prev))
 
     verify_forward(linked_list, [2, 3, 4, 6, 7, 8, 9, 10])
     verify_backwards(linked_list, [10, 9, 8, 7, 6, 4, 3, 2])
@@ -202,7 +201,6 @@ if __name__ == "__main__":
     print('-' * 20 + 'Remove Tail' + '-' * 20)
     curr_node = linked_list.tail
     linked_list.remove_node(curr_node)
-    print('curr_node: ' + str(curr_node.value) + ' next: ' + str(curr_node.next) + ' prev: ' + str(curr_node.prev))
 
     verify_forward(linked_list, [2, 3, 4, 6, 7, 8, 9])
     verify_backwards(linked_list, [9, 8, 7, 6, 4, 3, 2])
