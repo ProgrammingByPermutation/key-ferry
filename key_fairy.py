@@ -6,10 +6,11 @@ import playback.playback as playback
 
 EventType = constants.EventType
 
+rec = recorder.WindowsRecorder()
 while True:
-    rec = recorder.WindowsRecorder()
+    rec.start()
     os.system('notepad')
-    rec.disconnect()
+    rec.stop()
 
     print('Number of events: ' + str(len(rec.events)))
 
@@ -25,8 +26,23 @@ while True:
     play = playback.WindowsPlaybackManager(rec.events)
     play.start()
     os.system('notepad')
-    rec.release()
+    play.stop()
     play.release()
+    rec.events.clear()
 
-    # TODO: Make WindowsRecorder a singleton, bad things are happening when more than one of them are alive
     # TODO: Fix special keys (shift, alt, ctrl) they're currently state swapping permanently
+
+    # Text to speech that made me laugh
+    # message = ""
+    # for event in rec.events:
+    #     if event.Type == constants.EventType.KEYBOARD:
+    #         if (event.Ascii > 64 and event.Ascii < 91) or (event.Ascii > 96 and event.Ascii < 123):
+    #             message += event.Key
+    #         else:
+    #             message += " "
+    #
+    # import gtts
+    #
+    # tts = gtts.gTTS(text=message, lang='en')
+    # tts.save(r'computer.mp3')
+    # os.system('start ' + r'computer.mp3')

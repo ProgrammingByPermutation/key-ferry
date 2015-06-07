@@ -1,9 +1,10 @@
 from __future__ import print_function
 import datetime
 import threading
+import win32api
 
 import pyHook
-
+import win32con
 import pythoncom
 
 import recording.constants as constants
@@ -16,34 +17,40 @@ class WindowsListener:
     """
     Hooks onto Windows keyboard and mouse events, pushing callbacks to the subscribing class.
     """
+    __instance = None
 
-    def __init__(self, listeners):
+    def __init__(self):
         """
         Initializes a new instance of the WindowsListener class.
-        :param listeners: A list of listeners to call when keyboard or mouse event occur. Listeners must implement an
-        on_mouse_event(event) method and an on_keyboard_event(event) method.
         """
+        # TODO: Supposedly we can handle this much better use a metaclass. Should revisit once I understand them.
+        if not self.__initialized:
+            self.__initialized = True
+            self.__listeners = []
+            self.__connected = False
+            self.__thread = threading.Thread(target=self.__start_thread)
+            self.__thread.start()
 
-        # Check that we received listeners
-        if None == listeners or 0 == len(listeners):
-            raise (ArgumentError, "listeners cannot be None")
-
-        # Check that listeners have the correct contract
-        for x in listeners:
-            x_methods = dir(x)
-            if 'on_mouse_event' not in x_methods:
-                raise (ArgumentError, "listeners must define a on_mouse_event(event) method")
-            elif 'on_keyboard_event' not in x_methods:
-                raise (ArgumentError, "listeners must define a on_keyboard_event(event) method")
-
-        self.__listeners = listeners
-        self.__thread = threading.Thread(target=self.__start_thread)
-        self.__thread.start()
+    def __new__(cls, *args, **kwargs):
+        """
+        Creates a single instance of the WindowsListener class.
+        :param cls: The class that is being "new"ed.
+        :param args: The regular arguments.
+        :param kwargs: The keyword arguments.
+        :return: The singleton instance of the WindowsListener class.
+        """
+        if cls.__instance is None:
+            cls.__instance = object.__new__(cls, *args)
+            cls.__initialized = False
+        return cls.__instance
 
     def __start_thread(self):
         """
         Starts a new thread that will wait for keyboard and mouse events to occur globally.
         """
+
+        # Save thread identifier
+        self.__main_thread_id = win32api.GetCurrentThreadId()
 
         # Create the hook manager
         self.__hook_manager = pyHook.HookManager()
@@ -53,7 +60,8 @@ class WindowsListener:
         self.__hook_manager.KeyDown = lambda event: WindowsListener.__on_keyboard_event(self, event)
 
         # Hook into the mouse and keyboard events
-        self.connect()
+        self.__hook_manager.HookMouse()
+        self.__hook_manager.HookKeyboard()
 
         # Suspend the thread indefinitely waiting for callbacks
         pythoncom.PumpMessages()
@@ -111,29 +119,44 @@ class WindowsListener:
         # return False to stop the event from propagating
         return True
 
-    def connect(self):
+    def add_listener(self, listener):
         """
-        Connects to the Windows hooks to receive callbacks about mouse and keyboard events.
+        Adds a listener to the listener list.
+        :param listener: The listener to subscribe. Listeners should have a on_mouse_event(self, event) and
+                         on_keyboard_event(self, event) method.
+        :exception ValueError: Thrown if the listener is already subscribed.
         """
-        self.__hook_manager.HookMouse()
-        self.__hook_manager.HookKeyboard()
+        if self in self.__listeners:
+            raise ValueError("list.append(x): x already in list")
 
-    def disconnect(self):
+        x_methods = dir(listener)
+        if 'on_mouse_event' not in x_methods:
+            raise ArgumentError("listeners must define a on_mouse_event(event) method")
+        elif 'on_keyboard_event' not in x_methods:
+            raise ArgumentError("listeners must define a on_keyboard_event(event) method")
+        self.__listeners.append(listener)
+
+    def remove_listener(self, listener):
         """
-        Disconnects from the Windows hooks to receive callbacks about mouse and keyboard events.
+        Removes a listener from the listener list.
+        :param listener: The listener to un-subscribe.
+        :exception ValueError: Thrown if the listener is not already subscribed.
         """
-        self.__hook_manager.UnhookMouse()
-        self.__hook_manager.UnhookKeyboard()
+        self.__listeners.remove(listener)
 
     def release(self):
         """
         Releases the resources used by the current instance of the class.
         """
+        self.__listeners.clear()
+        win32api.PostThreadMessage(self.__main_thread_id, win32con.WM_QUIT, 0, 0)
         self.__hook_manager.UnhookMouse()
         self.__hook_manager.UnhookKeyboard()
+        self.__thread.join()
+        self.__instance = None
 
 
-class WindowsRecorder(WindowsListener):
+class WindowsRecorder:
     """
     Hooks onto Windows keyboard and mouse events, storing a list of recorded events.
     """
@@ -145,7 +168,7 @@ class WindowsRecorder(WindowsListener):
         Attributes:
             events: The list of events that have been recorded.
         """
-        WindowsListener.__init__(self, [self])
+        self.__listener = WindowsListener()
         self.events = []
         self.__time_since_last_command = datetime.datetime.now()
 
@@ -184,11 +207,29 @@ class WindowsRecorder(WindowsListener):
         # Add to the events list
         self.events.append(event)
 
+    def start(self):
+        """
+        Starts recording keyboard and mouse events.
+        """
+        self.__listener.add_listener(self)
+
+    def stop(self):
+        """
+        Stops recording keyboard and mouse events.
+        """
+        self.__listener.remove_listener(self)
+
     def release(self):
         """
         Releases the resources used by the current instance of the class.
         """
-        WindowsListener.release(self)
+        if None != self.__listener:
+            self.stop()
+            self.__listener = None
 
         if None != self.events:
             self.events.clear()
+            self.events = None
+
+        if None != self.__time_since_last_command:
+            self.__time_since_last_command = None

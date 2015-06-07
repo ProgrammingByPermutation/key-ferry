@@ -1,7 +1,6 @@
 import threading
 import win32api
 import time
-import os
 
 import win32con
 
@@ -23,9 +22,11 @@ class WindowsPlaybackManager:
         if len(events) <= 0:
             return
 
-        self.__listener = recorder.WindowsListener([self])
+        self.__listener = recorder.WindowsListener()
         self.__events = collections.LinkedList(events)
         self.__curr_event_node = self.__events.head
+        self.__timer = None
+        self.started = False
 
     def on_mouse_event(self, event):
         """
@@ -38,8 +39,7 @@ class WindowsPlaybackManager:
         Quits the application if the ESC key is pressed.
         """
         if not event.Injected and event.Ascii == 27:
-            self.release()
-            os._exit(-1)
+            self.stop()
 
     def __on_timer_tick(self):
         """
@@ -68,10 +68,29 @@ class WindowsPlaybackManager:
         self.__start_timer()
 
     def start(self):
-        # Try to start the timer
-        self.__start_timer()
+        """
+        Starts the playback of events. If the playback was previously started and stopped this method will resume
+        where the previous playback left off.
+        """
+        # If we have exceeded our list, we're done here. The timer will not start itself again.
+        # Otherwise, increment to the next event and reset the timer
+        if self.__curr_event_node is not None:
+            self.started = True
+            self.__listener.add_listener(self)
+            self.__start_timer()
+
+    def stop(self):
+        """
+        Stops the playback of events. This does not dispose of any resources, playback can be re-started.
+        """
+        self.started = False
+        self.__listener.remove_listener(self)
+        self.__timer.cancel()
 
     def __start_timer(self):
+        """
+        Creates a timer object to play the next thing in the playlist.
+        """
         # If we have exceeded our list, we're done here. The timer will not start itself again.
         # Otherwise, increment to the next event and reset the timer
         if self.__curr_event_node is not None:
@@ -95,4 +114,18 @@ class WindowsPlaybackManager:
         """
         Releases the managed and un-managed resources associated with the instance.
         """
-        self.__listener.release()
+        if self.started:
+            self.stop()
+
+        if self.__timer is not None:
+            self.__timer.cancel()
+            self.__timer = None
+
+        if self.__listener is not None:
+            self.__listener = None
+
+        if self.__events is not None:
+            self.__events = None
+
+        if self.__curr_event_node is not None:
+            self.__curr_event_node = None
