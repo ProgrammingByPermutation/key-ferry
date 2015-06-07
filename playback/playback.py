@@ -1,10 +1,13 @@
 import threading
-import recording.constants as constants
 import win32api
-import win32con
 import time
-import recording.recorder as recorder
 import os
+
+import win32con
+
+import recording.constants as constants
+import recording.recorder as recorder
+import utilities.collections as collections
 
 
 class WindowsPlaybackManager:
@@ -21,9 +24,8 @@ class WindowsPlaybackManager:
             return
 
         self.__listener = recorder.WindowsListener([self])
-        self.__events = list(events)
-        self.__index = -1
-        self.__increment_event()
+        self.__events = collections.LinkedList(events)
+        self.__curr_event_node = self.__events.head
 
     def on_mouse_event(self, event):
         """
@@ -43,10 +45,11 @@ class WindowsPlaybackManager:
         """
         Handles executing the current action and incrementing to the next event.
         """
-        if self.__curr_event.Type == constants.EventType.MOUSE:
-            WindowsPlaybackManager.click(self.__curr_event.Position[0], self.__curr_event.Position[1])
-        elif self.__curr_event.Type == constants.EventType.KEYBOARD:
-            win32api.keybd_event(self.__curr_event.KeyID, 0, 0, 0)
+        event = self.__curr_event_node.value
+        if event.Type == constants.EventType.MOUSE:
+            WindowsPlaybackManager.click(event.Position[0], event.Position[1])
+        elif event.Type == constants.EventType.KEYBOARD:
+            win32api.keybd_event(event.KeyID, 0, 0, 0)
         self.__increment_event()
 
     def __increment_event(self):
@@ -54,14 +57,26 @@ class WindowsPlaybackManager:
         Increments to the next available event.
         """
 
-        # Increment the index by 1
-        self.__index += 1
+        # If we've already exhausted the list, return
+        if self.__curr_event_node is None:
+            return
 
-        # If our index exceed our list, we're done here. The timer will not start itself again.
+        # Increment to the next event
+        self.__curr_event_node = self.__curr_event_node.next
+
+        # Start a new timer
+        self.__start_timer()
+
+    def start(self):
+        # Try to start the timer
+        self.__start_timer()
+
+    def __start_timer(self):
+        # If we have exceeded our list, we're done here. The timer will not start itself again.
         # Otherwise, increment to the next event and reset the timer
-        if len(self.__events) > self.__index:
-            self.__curr_event = self.__events[self.__index]
-            self.__timer = threading.Timer(self.__curr_event.Time, WindowsPlaybackManager.__on_timer_tick, args=(self,))
+        if self.__curr_event_node is not None:
+            self.__timer = threading.Timer(self.__curr_event_node.value.Time, WindowsPlaybackManager.__on_timer_tick,
+                                           args=(self,))
             self.__timer.start()
 
     @staticmethod

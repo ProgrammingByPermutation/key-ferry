@@ -2,6 +2,7 @@ class Node:
     """
     Class presenting a single node in a doubly linked list.
     """
+
     def __init__(self, value):
         """
         Initializes a new instance of the Node class.
@@ -16,12 +17,18 @@ class LinkedList:
     """
     Class presenting a doubly linked list.
     """
-    def __init__(self):
+
+    def __init__(self, copy=None):
         """
         Initializes a new instance of the LinkedList class.
+        :param copy: The collection to copy.
         """
         self.head = None
         self.tail = None
+
+        # Copy the collection
+        if copy is not None:
+            [self.add_data(x) for x in copy]
 
     def add_data(self, data):
         """
@@ -125,6 +132,7 @@ class LinkedList:
             if node.value == data:
                 return node
             node = node.next
+
 
 if __name__ == "__main__":
     def print_forward(linked_list):

@@ -1,7 +1,8 @@
+import os
+
 import recording.recorder as recorder
 import recording.constants as constants
 import playback.playback as playback
-import os
 
 EventType = constants.EventType
 
@@ -22,10 +23,10 @@ while True:
     #         print('Error with event' + x)
 
     play = playback.WindowsPlaybackManager(rec.events)
+    play.start()
     os.system('notepad')
     rec.release()
     play.release()
 
     # TODO: Make WindowsRecorder a singleton, bad things are happening when more than one of them are alive
     # TODO: Fix special keys (shift, alt, ctrl) they're currently state swapping permanently
-    # TODO: Turn events into a linked list...does python have one of those?
