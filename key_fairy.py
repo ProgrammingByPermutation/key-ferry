@@ -13,6 +13,8 @@ while True:
     rec.stop()
 
     print('Number of events: ' + str(len(rec.events)))
+    print('Helds: ', end="")
+    print(rec._WindowsRecorder__keys_held_down)
 
     # print('-' * 80)
     # for x in rec.events:

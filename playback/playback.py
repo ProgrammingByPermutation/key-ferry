@@ -1,6 +1,5 @@
 import threading
 import win32api
-import time
 
 import win32con
 
@@ -38,7 +37,7 @@ class WindowsPlaybackManager:
         """
         Quits the application if the ESC key is pressed.
         """
-        if not event.Injected and event.Ascii == 27:
+        if not event.Injected and event.Is_Down and event.Ascii == 27:
             self.stop()
 
     def __on_timer_tick(self):
@@ -47,9 +46,9 @@ class WindowsPlaybackManager:
         """
         event = self.__curr_event_node.value
         if event.Type == constants.EventType.MOUSE:
-            WindowsPlaybackManager.click(event.Position[0], event.Position[1])
+            WindowsPlaybackManager.mouse_click(event.Position[0], event.Position[1], event.Is_Down, event.Is_Left)
         elif event.Type == constants.EventType.KEYBOARD:
-            win32api.keybd_event(event.KeyID, 0, 0, 0)
+            WindowsPlaybackManager.key_press(event.KeyID, event.Is_Held_Down, event.Is_Release)
         self.__increment_event()
 
     def __increment_event(self):
@@ -99,16 +98,42 @@ class WindowsPlaybackManager:
             self.__timer.start()
 
     @staticmethod
-    def click(x, y):
+    def key_press(key_id, is_down_only=False, is_up_only=False):
+        """
+        Static method that simulates a keyboard press.
+        :param key_id: The key identifier to send to windows
+        :param is_down_only: Indicates if the key press is pressing down and holding the key.
+        :param is_up_only: Indicates if the key press is releasing a previously held down key.
+        """
+        if is_down_only:
+            win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_EXTENDEDKEY, 0)
+        elif is_up_only:
+            win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_EXTENDEDKEY | win32con.KEYEVENTF_KEYUP, 0)
+        else:
+            win32api.keybd_event(key_id, 0, 0, 0)
+
+    @staticmethod
+    def mouse_click(x, y, down, left):
         """
         Static method that simulates a mouse click.
         :param x: The x-coordinate of the click.
         :param y: The y-coordinate of the click.
         """
         win32api.SetCursorPos((x, y))
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0)
-        time.sleep(.1)
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
+
+        code = None
+        if down:
+            if left:
+                code = win32con.MOUSEEVENTF_LEFTDOWN
+            else:
+                code = win32con.MOUSEEVENTF_RIGHTDOWN
+        else:
+            if left:
+                code = win32con.MOUSEEVENTF_LEFTUP
+            else:
+                code = win32con.MOUSEEVENTF_RIGHTUP
+
+        win32api.mouse_event(code, x, y, 0, 0)
 
     def release(self):
         """
