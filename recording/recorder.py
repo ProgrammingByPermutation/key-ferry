@@ -4,9 +4,7 @@ import threading
 import win32api
 
 import pyHook
-
 import win32con
-
 import pythoncom
 
 import recording.constants as constants
@@ -31,6 +29,7 @@ class WindowsListener:
             self.__listeners = []
             self.__connected = False
             self.__thread = threading.Thread(target=self.__thread_target, name='Hook Manager\'s Thread')
+            self.__thread.daemon = True
             self.__thread.start()
             self.__keys_held_down = []
 
@@ -190,12 +189,12 @@ class WindowsRecorder:
     """
     Hooks onto Windows keyboard and mouse events, storing a list of recorded events.
     """
-    __HOLDABLE_KEYS = [160, 161, 162, 163, 164, 165]
+    __HOLDABLE_KEYS = [160, 161, 162, 163, 164, 165, 91]
     __CTRL_KEYS = [162, 163]
     __ALT_KEYS = [164, 165]
     __DEL = 46
 
-    def __init__(self):
+    def __init__(self, events_collection=None):
         """
         Initializes a new instance of the WindowsRecorder class.
 
@@ -204,7 +203,10 @@ class WindowsRecorder:
         """
         self.__listener = WindowsListener()
         self.__keys_held_down = []
-        self.events = []
+        if events_collection is not None:
+            self.events = events_collection
+        else:
+            self.events = []
         self.__time_since_last_command = datetime.datetime.now()
 
     def on_mouse_event(self, event):
