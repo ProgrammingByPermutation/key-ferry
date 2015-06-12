@@ -1,5 +1,7 @@
+import os
 import threading
 import win32api
+import inspect
 
 import win32con
 
@@ -134,6 +136,57 @@ class WindowsPlaybackManager:
                 code = win32con.MOUSEEVENTF_RIGHTUP
 
         win32api.mouse_event(code, x, y, 0, 0)
+
+    @staticmethod
+    def create_executable_playback_file(file, events):
+        """
+        Writes a list of events to an executable script for the user.
+        :param file: The file to write to.
+        :param events: The list of events to create a script from.
+        """
+
+        # Print header
+        print('# Mandatory imports', file=file)
+        print('import time', file=file)
+        print('import sys', file=file)
+        print('', file=file)
+        print('', file=file)
+        print("# Set Python's path", file=file)
+        print('sys.path.append(r"%s%s")' % (os.path.dirname(inspect.getfile(WindowsPlaybackManager)), r'\..'),
+              file=file)
+        print('from playback.playback import WindowsPlaybackManager', file=file)
+        print('', file=file)
+        print('', file=file)
+
+        # Find the longest string
+        max_length = 0
+
+        # Gather events in executable form
+        for x in range(0, len(events)):
+            event = curr = events[x]
+            if event.Type == constants.EventType.MOUSE:
+                event.Executable = 'WindowsPlaybackManager.mouse_click(%s, %s, %s, %s)' % (
+                    event.Position[0], event.Position[1], event.Is_Down, event.Is_Left)
+
+                length = len(event.Executable)
+                if length > max_length:
+                    max_length = length + 4
+            elif event.Type == constants.EventType.KEYBOARD:
+                event.Executable = 'WindowsPlaybackManager.key_press(%s, %s, %s)' % (
+                    event.KeyID, event.Is_Held_Down, event.Is_Release)
+
+                length = len(event.Executable)
+                if length > max_length:
+                    max_length = length + 4
+            events[x] = curr
+
+        # Print everything to the file
+        for event in events:
+            print("time.sleep(%s)" % event.Time, file=file)
+            if event.Type == constants.EventType.MOUSE:
+                print('%-*s%s' % (max_length, event.Executable, "# Window: %s" % event.WindowName), file=file)
+            elif event.Type == constants.EventType.KEYBOARD:
+                print('%-*s%s' % (max_length, event.Executable, "# Key: %s " % event.Key), file=file)
 
     def release(self):
         """
