@@ -194,7 +194,7 @@ class WindowsRecorder:
     __ALT_KEYS = [164, 165]
     __DEL = 46
 
-    def __init__(self, events_collection=None):
+    def __init__(self, events_collection=None, event_queue=None):
         """
         Initializes a new instance of the WindowsRecorder class.
 
@@ -203,10 +203,16 @@ class WindowsRecorder:
         """
         self.__listener = WindowsListener()
         self.__keys_held_down = []
+        self.__recording_callbacks = []
+
         if events_collection is not None:
-            self.events = events_collection
-        else:
-            self.events = []
+            self.events_collection = events_collection
+            self.__recording_callbacks.append(lambda event: self.events_collection.append(event))
+
+        if event_queue is not None:
+            self.events_queue = event_queue
+            self.__recording_callbacks.append(lambda event: self.events_queue.put(event))
+
         self.__time_since_last_command = datetime.datetime.now()
 
     def on_mouse_event(self, event):
@@ -289,8 +295,9 @@ class WindowsRecorder:
         event.Time = (curr_time - self.__time_since_last_command).total_seconds()
         self.__time_since_last_command = curr_time
 
-        # Add to the events list
-        self.events.append(event)
+        # Add to the events lists
+        for func in self.__recording_callbacks:
+            func(event)
 
     def start(self):
         """
@@ -311,10 +318,6 @@ class WindowsRecorder:
         if None != self.__listener:
             self.stop()
             self.__listener = None
-
-        if None != self.events:
-            self.events.clear()
-            self.events = None
 
         if None != self.__time_since_last_command:
             self.__time_since_last_command = None

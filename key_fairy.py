@@ -1,5 +1,6 @@
 import multiprocessing
 import subprocess
+import threading
 import sys
 import tkinter
 import tkinter.messagebox
@@ -28,6 +29,7 @@ class GlobalInfo:
         self.end_recording_event = None  # A reference to the event handle to end the recording process
         self.recorded_events = None  # A list of values outputted by the recording process
         self.playing_process = None  # The subprocess that is playing a file currently
+        self.interprocess_queue = None  # A queue used to listen for stopping a playback
 
 
 def record_click(global_info):
@@ -44,8 +46,9 @@ def record_click(global_info):
         # that we're using and the GUI technology BOTH need to be in full use of the main application thread at all
         # times. To get around a conflict, or some complex schema for hot swapping between them, we'll just launch
         # the logger in a new process where it can hog the application thread to it's heart's content.
+        global_info.end_recording_event.clear()
         process = multiprocessing.Process(target=logger_worker,
-                                          args=(global_info.recorded_events, global_info.end_recording_event),
+                                          args=(global_info.end_recording_event, global_info.recorded_events),
                                           name='Recorder Process')
         process.start()
 
@@ -69,16 +72,44 @@ def record_click(global_info):
     global_info.window.record_button['text'] = text
 
 
-def logger_worker(return_values, event):
+def logger_worker(event, recording_list=None, callback_queue=None):
     """
     This function will be launched in a separate process to allow the key/mouse logger to allow it full use of the
     process' application thread.
-    :param return_values: The interprocess collection to store the output in.
     :param event: The event handle that will be signaled to tell the process to end.
+    :param recording_list: The interprocess collection to store the output in.
+    :param callback_queue: The queue to call when an input occurs.
+    :return:
     """
-    rec = recorder.WindowsRecorder(return_values)
+    rec = recorder.WindowsRecorder(recording_list, callback_queue)
     rec.start()
     event.wait()
+
+
+def terminate_playback_thread(global_info):
+    while True:
+        ret = global_info.interprocess_queue.get()
+        if ret is None:
+            return
+
+        if ret.KeyID == 123:
+            # Terminate the listening process
+            global_info.end_recording_event.set()
+
+            # Terminate the playback
+            global_info.playing_process.terminate()
+            return
+
+
+def playback_finished_thread(global_info):
+    # Wait for playback
+    global_info.playing_process.wait()
+
+    # Terminate the terminator thread
+    global_info.interprocess_queue.put(None)
+
+    # Terminate the listening process
+    global_info.end_recording_event.set()
 
 
 def play_file(global_info):
@@ -89,7 +120,22 @@ def play_file(global_info):
 
     # If the user didn't push cancel launch a subprocess
     if file is not None:
+        global_info.end_recording_event.clear()
+        process = multiprocessing.Process(target=logger_worker,
+                                          args=(global_info.end_recording_event, None, global_info.interprocess_queue),
+                                          name='Playback Listener Process')
+        process.start()
+
         global_info.playing_process = subprocess.Popen(sys.executable + ' ' + file)
+
+        thread = threading.Thread(target=terminate_playback_thread, name='Terminate Playback Thread',
+                                  args=(global_info,))
+        thread.daemon = True
+        thread.start()
+
+        thread = threading.Thread(target=terminate_playback_thread, name='Process Finished Thread', args=(global_info,))
+        thread.daemon = True
+        thread.start()
 
 
 if __name__ == '__main__':
@@ -102,6 +148,9 @@ if __name__ == '__main__':
 
     # Create the event handle we'll use to signal the process to end
     global_info.end_recording_event = manager.Event()
+
+    # Create the queue we'll use to listen for the user telling us to stop a playback
+    global_info.interprocess_queue = manager.Queue()
 
     # Create our GUI
     global_info.window = main_window.MainWindow()
