@@ -1,11 +1,12 @@
 import multiprocessing
 import subprocess
-import os
 import sys
 import tkinter
 import tkinter.messagebox
 import tkinter.filedialog
 
+import playback.playback as playback
+import gui.main_window as main_window
 import recording.recorder as recorder
 import recording.constants as constants
 
@@ -22,11 +23,10 @@ class GlobalInfo:
         """
         Initializes a new instance of the GlobalInfo class.
         """
+        self.window = None  # A reference to the main window
         self.recording = False  # Indicates if we're currently recording
-        self.record_button = None  # A reference to the record button
-        self.play_button = None  # A reference to the playback button
-        self.event = None  # A reference to the event handle to end the recording process
-        self.values = None  # A list of values outputted by the recording process
+        self.end_recording_event = None  # A reference to the event handle to end the recording process
+        self.recorded_events = None  # A list of values outputted by the recording process
         self.playing_process = None  # The subprocess that is playing a file currently
 
 
@@ -44,7 +44,8 @@ def record_click(global_info):
         # that we're using and the GUI technology BOTH need to be in full use of the main application thread at all
         # times. To get around a conflict, or some complex schema for hot swapping between them, we'll just launch
         # the logger in a new process where it can hog the application thread to it's heart's content.
-        process = multiprocessing.Process(target=logger_worker, args=(global_info.values, global_info.event),
+        process = multiprocessing.Process(target=logger_worker,
+                                          args=(global_info.recorded_events, global_info.end_recording_event),
                                           name='Recorder Process')
         process.start()
 
@@ -52,70 +53,20 @@ def record_click(global_info):
         text = 'Stop Recording'
     else:
         # If we've stopped recording, set the event handle to end the other process we spawned.
-        global_info.event.set()
+        global_info.end_recording_event.set()
 
         # Open a save file dialog so the user can save their script
         file = tkinter.filedialog.asksaveasfile(mode='w', defaultextension=".py")
 
         # If the cancel button wasn't pressed, save the script
         if file is not None:
-            write_to_file(file, global_info.values)
+            playback.WindowsPlaybackManager.create_executable_playback_file(file, global_info.recorded_events)
 
         # Swap the text for the user
         text = 'Record'
 
     # Save the new text to the button
-    global_info.record_button['text'] = text
-
-
-def write_to_file(file, events):
-    """
-    Writes a list of events to an executable script for the user.
-    :param file: The file to write to.
-    :param events: The list of events to create a script from.
-    """
-
-    # Print header
-    print('# Mandatory imports', file=file)
-    print('import time', file=file)
-    print('import sys', file=file)
-    print('', file=file)
-    print('', file=file)
-    print("# Set Python's path", file=file)
-    print('sys.path.append(r"%s")' % os.getcwd(), file=file)
-    print('from playback.playback import WindowsPlaybackManager', file=file)
-    print('', file=file)
-    print('', file=file)
-
-    # Find the longest string
-    max_length = 0
-
-    # Gather events in executable form
-    for x in range(0, len(events)):
-        event = curr = events[x]
-        if event.Type == constants.EventType.MOUSE:
-            event.Executable = 'WindowsPlaybackManager.mouse_click(%s, %s, %s, %s)' % (
-                event.Position[0], event.Position[1], event.Is_Down, event.Is_Left)
-
-            length = len(event.Executable)
-            if length > max_length:
-                max_length = length + 4
-        elif event.Type == constants.EventType.KEYBOARD:
-            event.Executable = 'WindowsPlaybackManager.key_press(%s, %s, %s)' % (
-                event.KeyID, event.Is_Held_Down, event.Is_Release)
-
-            length = len(event.Executable)
-            if length > max_length:
-                max_length = length + 4
-        events[x] = curr
-
-    # Print everything to the file
-    for event in events:
-        print("time.sleep(%s)" % event.Time, file=file)
-        if event.Type == constants.EventType.MOUSE:
-            print('%-*s%s' % (max_length, event.Executable, "# Window: %s" % event.WindowName), file=file)
-        elif event.Type == constants.EventType.KEYBOARD:
-            print('%-*s%s' % (max_length, event.Executable, "# Key: %s " % event.Key), file=file)
+    global_info.window.record_button['text'] = text
 
 
 def logger_worker(return_values, event):
@@ -147,18 +98,16 @@ if __name__ == '__main__':
 
     # Create the interprocess list that will record all our keystrokes and mouse clicks
     manager = multiprocessing.Manager()
-    global_info.values = manager.list()
+    global_info.recorded_events = manager.list()
 
     # Create the event handle we'll use to signal the process to end
-    global_info.event = manager.Event()
+    global_info.end_recording_event = manager.Event()
 
     # Create our GUI
-    window = tkinter.Tk()
-    global_info.record_button = tkinter.Button(window, text='Record', command=lambda: record_click(global_info))
-    global_info.play_button = tkinter.Button(window, text='Play File', command=lambda: play_file(global_info))
-    global_info.record_button.pack()
-    global_info.play_button.pack()
-    window.mainloop()
+    global_info.window = main_window.MainWindow()
+    global_info.window.record_button['command'] = lambda: record_click(global_info)
+    global_info.window.play_button['command'] = lambda: play_file(global_info)
+    global_info.window.show()
 
     if global_info.playing_process is not None:
         global_info.playing_process.terminate()
