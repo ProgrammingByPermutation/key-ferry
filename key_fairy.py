@@ -87,6 +87,7 @@ def logger_worker(event, recording_list=None, callback_queue=None):
 
 
 def terminate_playback_thread(global_info):
+    # TODO: Move logic to playback class
     while True:
         ret = global_info.interprocess_queue.get()
         if ret is None:
@@ -102,6 +103,7 @@ def terminate_playback_thread(global_info):
 
 
 def playback_finished_thread(global_info):
+    # TODO: Move logic to playback class
     # Wait for playback
     global_info.playing_process.wait()
 
@@ -113,7 +115,7 @@ def playback_finished_thread(global_info):
 
 
 def play_file(global_info):
-    # TODO: Fill out this method will recorder logic for canceling in the middle of a playback
+    # TODO: Move logic to playback class
 
     # Ask the user for the file
     file = tkinter.filedialog.askopenfilename()
