@@ -8,15 +8,13 @@ from cx_Freeze import setup, Executable
 
 
 
-
-
 # Dependencies are automatically detected, but it might need fine tuning.
 # build_exe_options = {"packages": ["os"], "excludes": ["tkinter"]}
 
 site_packages = next((x for x in site.getsitepackages() if 'site-packages' in x), None)
-print(os.path.join(site_packages, "pyHook", "_cpyHook.pyd"))
-print(os.path.join("pyHook", "_cpyHook.pyd"))
 
+# There is an error in the way cx_freeze grabs dependencies, for whatever reason it misses _cpyHook.pyd. Technically,
+# the following "zip_includes" doesn't work. I just added it for fun. The "include_files" on the other hand does work.
 build_exe_options = {
     "zip_includes": [(os.path.join(site_packages, "pyHook", "_cpyHook.pyd"), os.path.join("pyHook", "_cpyHook.pyd"))],
     "include_files": [os.path.join(site_packages, "pyHook")]
@@ -27,6 +25,7 @@ if sys.platform == 'win32':
     base = 'Win32GUI'
 
 executables = [
+    # Executable('key_ferry.py', base=base) # Uncomment as soon as we figure out why the error output ruins the program
     Executable('key_ferry.py')
 ]
 
