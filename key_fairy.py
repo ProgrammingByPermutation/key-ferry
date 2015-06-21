@@ -1,7 +1,6 @@
 import multiprocessing
 import tkinter
 import tkinter.messagebox
-
 import tkinter.filedialog
 
 import playback.playback as playback
@@ -112,9 +111,11 @@ def play_file(global_info):
 
 
 if __name__ == '__main__':
+    # Required to stop infinite execution when we freeze
+    multiprocessing.freeze_support()
+
     # Create the global information object that holds all our data
     global_info = GlobalInfo()
-
     manager = multiprocessing.Manager()
     global_info.end_recording_event = manager.Event()
     global_info.recorded_events = manager.list()
