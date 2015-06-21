@@ -2,25 +2,20 @@ import os
 import threading
 import inspect
 import multiprocessing
-import subprocess
-import sys
 import win32api
 
 import win32con
 
+import python_executor
 import recording.constants as constants
 import recording.recorder as recorder
 
 
-
-
-
-
-# TODO: Thread-safe object
 class WindowsPlaybackManager:
     """
     Manager class that plays back recorded files for Windows.
     """
+    # TODO: Thread-safe object
     DEFAULT_TIMEOUT = 30
 
     def __init__(self, file):
@@ -59,11 +54,11 @@ class WindowsPlaybackManager:
         self.__user_cancel_thread.start()
 
         # Process that plays back the file
-        python_executor = os.path.join(os.path.dirname(sys.executable), 'python_executor.exe')
-        if not os.path.exists(python_executor):
-            python_executor = sys.executable
-        self.__recorded_script_process = subprocess.Popen(python_executor + ' "' + self.file + '"')
+        self.__recorded_script_process = multiprocessing.Process(target=python_executor.execute_file,
+                                                                 args=(self.file,),
+                                                                 name='Executing Playback Process')
         self.__recorded_script_process.daemon = True
+        self.__recorded_script_process.start()
 
         # Thread to wait for the script to end
         self.__script_ended_thread = threading.Thread(target=self.script_ended_thread_worker,
@@ -76,13 +71,7 @@ class WindowsPlaybackManager:
         This function is launched in a separate 'Script Ended Thread' thread which polls to see if the
         'Key Logger Worker Process' process has ended to clean up all of this classes resources.
         """
-        recorded_script_process = self.__recorded_script_process
-        while recorded_script_process is not None and recorded_script_process.poll() is None:
-            try:
-                # Wait for playback
-                recorded_script_process.wait(5)
-            except subprocess.TimeoutExpired:
-                pass
+        self.__recorded_script_process.join()
 
         # Terminate the terminator thread
         self.release()
