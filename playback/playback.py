@@ -1,103 +1,116 @@
 import os
 import threading
-import win32api
 import inspect
+import multiprocessing
+import subprocess
+import sys
+import win32api
 
 import win32con
 
 import recording.constants as constants
 import recording.recorder as recorder
-import utilities.collections as collections
 
 
+
+
+
+# TODO: Thread-safe object
 class WindowsPlaybackManager:
     """
     Manager class that plays back recorded files for Windows.
     """
+    DEFAULT_TIMEOUT = 30
 
-    def __init__(self, events):
+    def __init__(self, file):
         """
-        Initializes a new instance of the WindowsPlaybackManager class.
-        :param events: The list of events to playback
-        """
-        if len(events) <= 0:
-            return
-
-        self.__listener = recorder.WindowsListener()
-        self.__events = collections.LinkedList(events)
-        self.__curr_event_node = self.__events.head
-        self.__timer = None
-        self.started = False
-
-    def on_mouse_event(self, event):
-        """
-        Does nothing, just here to satisfy the interface.
-        """
-        pass
-
-    def on_keyboard_event(self, event):
-        """
-        Quits the application if the ESC key is pressed.
-        """
-        if not event.Injected and event.Is_Down and event.Ascii == 27:
-            self.stop()
-
-    def __on_timer_tick(self):
-        """
-        Handles executing the current action and incrementing to the next event.
-        """
-        event = self.__curr_event_node.value
-        if event.Type == constants.EventType.MOUSE:
-            WindowsPlaybackManager.mouse_click(event.Position[0], event.Position[1], event.Is_Down, event.Is_Left)
-        elif event.Type == constants.EventType.KEYBOARD:
-            WindowsPlaybackManager.key_press(event.KeyID, event.Is_Held_Down, event.Is_Release)
-        self.__increment_event()
-
-    def __increment_event(self):
-        """
-        Increments to the next available event.
+        Initializes a new instance of the WindowsPlaybackManager class. This class only supports a single playback.
+        If the playback ends, either because the user chose to or the file completed,
+        :param file: The string filename to play.
         """
 
-        # If we've already exhausted the list, return
-        if self.__curr_event_node is None:
-            return
-
-        # Increment to the next event
-        self.__curr_event_node = self.__curr_event_node.next
-
-        # Start a new timer
-        self.__start_timer()
+        # Create the interprocess list that will record all our keystrokes and mouse clicks
+        manager = multiprocessing.Manager()
+        self.__key_logger_process = None
+        self.__key_logger_process_end_event = manager.Event()
+        self.__key_logger_key_press_queue = manager.Queue()
+        self.__recorded_script_process = None
+        self.__user_cancel_thread = None
+        self.__script_ended_thread = None
+        self.__released = False
+        self.file = file
 
     def start(self):
         """
-        Starts the playback of events. If the playback was previously started and stopped this method will resume
-        where the previous playback left off.
+        Starts the playback of events. This can only be called once. New objects must be created to perform
+        an additional playback.
         """
-        # If we have exceeded our list, we're done here. The timer will not start itself again.
-        # Otherwise, increment to the next event and reset the timer
-        if self.__curr_event_node is not None:
-            self.started = True
-            self.__listener.add_listener(self)
-            self.__start_timer()
+        # Process to listen for the user's keystrokes and mouse clicks
+        self.__key_logger_process = multiprocessing.Process(target=self.key_logger_worker,
+                                                            name='Key Logger Worker Process')
+        self.__key_logger_process.daemon = True
+        self.__key_logger_process.start()
+
+        # Thread to listen to the output of the key logger process to see if the user pushed the exit key
+        self.__user_cancel_thread = threading.Thread(target=self.user_cancel_thread_worker,
+                                                     name='User Cancel Thread')
+        self.__user_cancel_thread.daemon = True
+        self.__user_cancel_thread.start()
+
+        # Process that plays back the file
+        self.__recorded_script_process = subprocess.Popen(sys.executable + ' "' + self.file + '"')
+        self.__recorded_script_process.daemon = True
+
+        # Thread to wait for the script to end
+        self.__script_ended_thread = threading.Thread(target=self.script_ended_thread_worker,
+                                                      name='Script Ended Thread')
+        self.__script_ended_thread.daemon = True
+        self.__script_ended_thread.start()
+
+    def script_ended_thread_worker(self):
+        """
+        This function is launched in a separate 'Script Ended Thread' thread which polls to see if the
+        'Key Logger Worker Process' process has ended to clean up all of this classes resources.
+        """
+        recorded_script_process = self.__recorded_script_process
+        while recorded_script_process is not None and recorded_script_process.poll() is None:
+            try:
+                # Wait for playback
+                recorded_script_process.wait(5)
+            except subprocess.TimeoutExpired:
+                pass
+
+        # Terminate the terminator thread
+        self.release()
+
+    def user_cancel_thread_worker(self):
+        """
+        This function is launched in a separate 'User Cancel Thread' thread which polls the output of the
+        'Key Logger Worker Process' process to determine if the user has requested the playback to stop.
+        """
+        while True:
+            ret = self.__key_logger_key_press_queue.get()
+            if ret is None:
+                return
+
+            if ret.Type != constants.EventType.MOUSE and not ret.Injected and ret.KeyID == 123:
+                self.release()
+                return
+
+    def key_logger_worker(self):
+        """
+        This function will be launched in a separate 'Key Logger Worker Process' process to allow the key/mouse logger
+        to allow it full use of the process' application thread.
+        """
+        rec = recorder.WindowsRecorder(event_queue=self.__key_logger_key_press_queue)
+        rec.start()
+        self.__key_logger_process_end_event.wait()
 
     def stop(self):
         """
-        Stops the playback of events. This does not dispose of any resources, playback can be re-started.
+        Stops the playback of events. This causes the object to be disposed of, the playback cannot be restarted.
         """
-        self.started = False
-        self.__listener.remove_listener(self)
-        self.__timer.cancel()
-
-    def __start_timer(self):
-        """
-        Creates a timer object to play the next thing in the playlist.
-        """
-        # If we have exceeded our list, we're done here. The timer will not start itself again.
-        # Otherwise, increment to the next event and reset the timer
-        if self.__curr_event_node is not None:
-            self.__timer = threading.Timer(self.__curr_event_node.value.Time, WindowsPlaybackManager.__on_timer_tick,
-                                           args=(self,))
-            self.__timer.start()
+        self.release()
 
     @staticmethod
     def key_press(key_id, is_down_only=False, is_up_only=False):
@@ -120,6 +133,8 @@ class WindowsPlaybackManager:
         Static method that simulates a mouse click.
         :param x: The x-coordinate of the click.
         :param y: The y-coordinate of the click.
+        :param down: Indicates if the click is a keypress down
+        :param left: Indicates if the click is a left keypress
         """
         win32api.SetCursorPos((x, y))
 
@@ -192,18 +207,64 @@ class WindowsPlaybackManager:
         """
         Releases the managed and un-managed resources associated with the instance.
         """
-        if self.started:
-            self.stop()
+        if self.__released:
+            return
 
-        if self.__timer is not None:
-            self.__timer.cancel()
-            self.__timer = None
+        self.__released = True
 
-        if self.__listener is not None:
-            self.__listener = None
+        # End the playback violently
+        recorded_script_process = self.__recorded_script_process
+        if recorded_script_process is not None:
+            recorded_script_process.terminate()
+            self.__recorded_script_process = None
 
-        if self.__events is not None:
-            self.__events = None
+        # Give everyone a chance to clean up
+        key_logger_process_end_event = self.__key_logger_process_end_event
+        if key_logger_process_end_event is not None:
+            key_logger_process_end_event.set()
 
-        if self.__curr_event_node is not None:
-            self.__curr_event_node = None
+        key_logger_key_press_queue = self.__key_logger_key_press_queue
+        if key_logger_key_press_queue is not None:
+            key_logger_key_press_queue.put(None)
+
+        # Start releasing resources
+        key_logger_process = self.__key_logger_process
+        if key_logger_process is not None:
+            if key_logger_process.is_alive():
+                key_logger_process.join(WindowsPlaybackManager.DEFAULT_TIMEOUT)
+
+                if key_logger_process.is_alive():
+                    key_logger_process.terminate()
+            self.__key_logger_process = None
+
+        user_cancel_thread = self.__user_cancel_thread
+        if user_cancel_thread is not None:
+            if user_cancel_thread.is_alive():
+                try:
+                    # Will throw exception if user_cancel_thread is the one that called release
+                    user_cancel_thread.join(WindowsPlaybackManager.DEFAULT_TIMEOUT)
+
+                    if user_cancel_thread.is_alive():
+                        print("[Error] User Cancel Thread didn't end during timeout of: " +
+                              str(WindowsPlaybackManager.DEFAULT_TIMEOUT))
+                except:
+                    pass
+
+        script_ended_thread = self.__script_ended_thread
+        if script_ended_thread is not None:
+            if script_ended_thread.is_alive():
+                try:
+                    # Will throw exception if script_ended_thread is the one that called release
+                    script_ended_thread.join(WindowsPlaybackManager.DEFAULT_TIMEOUT)
+
+                    if script_ended_thread.is_alive():
+                        print("[Error] Script Ended Thread didn't end during timeout of: " +
+                              str(WindowsPlaybackManager.DEFAULT_TIMEOUT))
+                except:
+                    pass
+
+        self.__key_logger_process_end_event = None
+        self.__key_logger_key_press_queue = None
+        self.__user_cancel_thread = None
+        self.__script_ended_thread = None
+        self.file = None

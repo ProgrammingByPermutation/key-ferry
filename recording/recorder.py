@@ -5,6 +5,7 @@ import win32api
 
 import pyHook
 import win32con
+
 import pythoncom
 
 import recording.constants as constants
@@ -21,7 +22,10 @@ class WindowsListener:
 
     def __init__(self):
         """
-        Initializes a new instance of the WindowsListener class.
+        Initializes a new instance of the WindowsListener class. An object of type WindowsListener expects full use of
+        the main application thread. If you have any other objects with this requirement (like a GUI) this class will
+        have to be marshaled to another process. Otherwise, the blocking portion of this class will launch in a separate
+        thread to ease use.
         """
         # TODO: Supposedly we can handle this much better using a metaclass. Should revisit once I understand them.
         if not self.__initialized:
