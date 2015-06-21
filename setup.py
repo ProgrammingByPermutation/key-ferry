@@ -8,6 +8,7 @@ from cx_Freeze import setup, Executable
 
 
 
+
 # Dependencies are automatically detected, but it might need fine tuning.
 # build_exe_options = {"packages": ["os"], "excludes": ["tkinter"]}
 
@@ -26,7 +27,8 @@ if sys.platform == 'win32':
 
 executables = [
     # Executable('key_ferry.py', base=base) # Uncomment as soon as we figure out why the error output ruins the program
-    Executable('key_ferry.py')
+    Executable('key_ferry.py'),
+    Executable('python_executor.py')
 ]
 
 setup(name='KeyFerry',

@@ -15,6 +15,7 @@ import recording.recorder as recorder
 
 
 
+
 # TODO: Thread-safe object
 class WindowsPlaybackManager:
     """
@@ -58,7 +59,10 @@ class WindowsPlaybackManager:
         self.__user_cancel_thread.start()
 
         # Process that plays back the file
-        self.__recorded_script_process = subprocess.Popen(sys.executable + ' "' + self.file + '"')
+        python_executor = os.path.join(os.path.dirname(sys.executable), 'python_executor.exe')
+        if not os.path.exists(python_executor):
+            python_executor = sys.executable
+        self.__recorded_script_process = subprocess.Popen(python_executor + ' "' + self.file + '"')
         self.__recorded_script_process.daemon = True
 
         # Thread to wait for the script to end
