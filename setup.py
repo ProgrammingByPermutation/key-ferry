@@ -6,12 +6,6 @@ import os
 
 from cx_Freeze import setup, Executable
 
-
-
-
-# Dependencies are automatically detected, but it might need fine tuning.
-# build_exe_options = {"packages": ["os"], "excludes": ["tkinter"]}
-
 site_packages = next((x for x in site.getsitepackages() if 'site-packages' in x), None)
 
 # There is an error in the way cx_freeze grabs dependencies, for whatever reason it misses _cpyHook.pyd. Technically,
