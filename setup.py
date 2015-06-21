@@ -13,7 +13,7 @@ if sys.platform == 'win32':
     base = 'Win32GUI'
 
 executables = [
-    Executable('key_fairy.py', base=base)
+    Executable('key_ferry.py', base=base)
 ]
 
 setup(name='KeyFerry',
