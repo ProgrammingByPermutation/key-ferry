@@ -1,4 +1,5 @@
 import multiprocessing
+import os
 import tkinter
 import tkinter.messagebox
 
@@ -30,10 +31,9 @@ class GlobalInfo:
         self.playing_back = False  # Indicates if we're currently playing back a file
 
 
-def record_click(global_info):
+def record_click():
     """
     Click event for the record button.
-    :param global_info: The global information object to access and mutate.
     """
 
     # Swap the recording flag to the opposite
@@ -50,8 +50,7 @@ def record_click(global_info):
                                           name='Recorder Process')
         process.start()
 
-        # Swap the text for the user
-        text = 'Stop Recording'
+        global_info.window.on_record_started()
     else:
         # If we've stopped recording, set the event handle to end the other process we spawned.
         global_info.end_recording_event.set()
@@ -63,11 +62,7 @@ def record_click(global_info):
         if file is not None:
             playback.WindowsPlaybackManager.create_executable_playback_file(file, global_info.recorded_events)
 
-        # Swap the text for the user
-        text = 'Record'
-
-    # Save the new text to the button
-    global_info.window.record_button['text'] = text
+        global_info.window.on_record_ended()
 
 
 def logger_worker(event, recording_list=None, callback_queue=None):
@@ -83,10 +78,25 @@ def logger_worker(event, recording_list=None, callback_queue=None):
     event.wait()
 
 
-def play_file(global_info):
+def on_playback_started():
+    """
+    Wrapper for the Tkinter window's on_playback_started method. Required because of the pickling performed inside of
+    the WindowsPlaybackManager class.
+    """
+    global_info.window.on_playback_started()
+
+
+def on_playback_ended():
+    """
+    Wrapper for the Tkinter window's on_playback_ended method. Required because of the pickling performed inside of
+    the WindowsPlaybackManager class.
+    """
+    global_info.window.on_playback_ended()
+
+
+def play_file():
     """
     Click event for the play button.
-    :param global_info: The global information object to access and mutate.
     """
 
     if not global_info.playing_back:
@@ -94,21 +104,15 @@ def play_file(global_info):
         file = tkinter.filedialog.askopenfilename()
 
         # If the user didn't push cancel launch a subprocess
-        if file is not None:
-            global_info.playing_file = playback.WindowsPlaybackManager(file)
+        if file is not None and os.path.exists(file):
+            global_info.playing_file = playback.WindowsPlaybackManager(file, [on_playback_started], [on_playback_ended])
             global_info.playing_file.start()
-
-        # Save the new text to the button
-        global_info.window.play_button['text'] = 'Stop'
+            global_info.playing_back = not global_info.playing_back
     else:
         # Stop the playback
         global_info.playing_file.stop()
         global_info.playing_file = None
-
-        # Save the new text to the button
-        global_info.window.play_button['text'] = 'Play File'
-
-    global_info.playing_back = not global_info.playing_back
+        global_info.playing_back = not global_info.playing_back
 
 
 if __name__ == '__main__':
@@ -123,8 +127,8 @@ if __name__ == '__main__':
 
     # Create our GUI
     global_info.window = main_window.MainWindow()
-    global_info.window.record_button['command'] = lambda: record_click(global_info)
-    global_info.window.play_button['command'] = lambda: play_file(global_info)
+    global_info.window.record_button['command'] = lambda: record_click()
+    global_info.window.play_button['command'] = lambda: play_file()
     global_info.window.show()
 
     if global_info.playing_file is not None:

@@ -18,11 +18,13 @@ class WindowsPlaybackManager:
     # TODO: Thread-safe object
     DEFAULT_TIMEOUT = 30
 
-    def __init__(self, file):
+    def __init__(self, file, on_playback_started=None, on_playback_ended=None):
         """
         Initializes a new instance of the WindowsPlaybackManager class. This class only supports a single playback.
         If the playback ends, either because the user chose to or the file completed,
         :param file: The string filename to play.
+        :param on_playback_started: The function to call when file playback starts. Should be a pickle-able iterable.
+        :param on_playback_ended: The function to call when file playback ends. Should be a pickle-able iterable.
         """
 
         # Create the interprocess list that will record all our keystrokes and mouse clicks
@@ -34,6 +36,8 @@ class WindowsPlaybackManager:
         self.__user_cancel_thread = None
         self.__script_ended_thread = None
         self.__released = False
+        self.__on_playback_started = on_playback_started
+        self.__on_playback_ended = on_playback_ended
         self.file = file
 
     def start(self):
@@ -41,6 +45,11 @@ class WindowsPlaybackManager:
         Starts the playback of events. This can only be called once. New objects must be created to perform
         an additional playback.
         """
+        # Notify everyone just before the playback is about to start
+        if self.__on_playback_started is not None:
+            for func in self.__on_playback_started:
+                func()
+
         # Process to listen for the user's keystrokes and mouse clicks
         self.__key_logger_process = multiprocessing.Process(target=self.key_logger_worker,
                                                             name='Key Logger Worker Process')
@@ -261,3 +270,15 @@ class WindowsPlaybackManager:
         self.__user_cancel_thread = None
         self.__script_ended_thread = None
         self.file = None
+
+        # Clear the listeners collections
+        if self.__on_playback_started is not None:
+            self.__on_playback_started.clear()
+            self.__on_playback_started = None
+
+        # Notify the listeners of the end of playback
+        if self.__on_playback_ended is not None:
+            for func in self.__on_playback_ended:
+                func()
+            self.__on_playback_ended.clear()
+            self.__on_playback_ended = None
