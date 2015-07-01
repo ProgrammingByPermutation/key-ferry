@@ -2,7 +2,6 @@ import multiprocessing
 import os
 import tkinter
 import tkinter.messagebox
-
 import tkinter.filedialog
 
 import playback.playback as playback
@@ -127,8 +126,8 @@ if __name__ == '__main__':
 
     # Create our GUI
     global_info.window = main_window.MainWindow()
-    global_info.window.record_button['command'] = lambda: record_click()
-    global_info.window.play_button['command'] = lambda: play_file()
+    global_info.window.record_button.config(command=lambda: record_click())
+    global_info.window.play_button.config(command=lambda: play_file())
     global_info.window.show()
 
     if global_info.playing_file is not None:

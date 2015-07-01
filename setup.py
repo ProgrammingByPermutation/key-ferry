@@ -12,7 +12,7 @@ site_packages = next((x for x in site.getsitepackages() if 'site-packages' in x)
 # the following "zip_includes" doesn't work. I just added it for fun. The "include_files" on the other hand does work.
 build_exe_options = {
     "zip_includes": [(os.path.join(site_packages, "pyHook", "_cpyHook.pyd"), os.path.join("pyHook", "_cpyHook.pyd"))],
-    "include_files": [os.path.join(site_packages, "pyHook")]
+    "include_files": [os.path.join(site_packages, "pyHook"), "keyboard-space.ico"]
 }
 
 base = None
@@ -21,8 +21,8 @@ if sys.platform == 'win32':
 
 executables = [
     # Executable('key_ferry.py', base=base) # Uncomment as soon as we figure out why the error output ruins the program
-    Executable('key_ferry.py'),
-    Executable('python_executor.py')
+    Executable('key_ferry.py', icon='keyboard-space.ico'),
+    Executable('python_executor.py', icon='keyboard-space.ico')
 ]
 
 setup(name='KeyFerry',
