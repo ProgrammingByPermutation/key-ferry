@@ -60,7 +60,7 @@ def record_click():
         # If the cancel button wasn't pressed, save the script
         if file is not None:
             playback.WindowsPlaybackManager.create_executable_playback_file(file, global_info.recorded_events)
-
+        global_info.recorded_events = manager.list()
         global_info.window.on_record_ended()
 
 
