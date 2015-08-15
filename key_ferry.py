@@ -82,6 +82,7 @@ def on_playback_started():
     Wrapper for the Tkinter window's on_playback_started method. Required because of the pickling performed inside of
     the WindowsPlaybackManager class.
     """
+    global_info.playing_back = True
     global_info.window.on_playback_started()
 
 
@@ -90,6 +91,7 @@ def on_playback_ended():
     Wrapper for the Tkinter window's on_playback_ended method. Required because of the pickling performed inside of
     the WindowsPlaybackManager class.
     """
+    global_info.playing_back = False
     global_info.window.on_playback_ended()
 
 
