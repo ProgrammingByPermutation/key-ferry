@@ -28,12 +28,9 @@ class WindowsPlaybackManager:
         """
 
         # Create the interprocess list that will record all our keystrokes and mouse clicks
-        manager = multiprocessing.Manager()
-        self.__key_logger_process = None
-        self.__key_logger_process_end_event = manager.Event()
-        self.__key_logger_key_press_queue = manager.Queue()
+        self.__key_logger = recorder.WindowsListener()
+        self.__key_logger.add_listener(self)
         self.__recorded_script_process = None
-        self.__user_cancel_thread = None
         self.__script_ended_thread = None
         self.__released = False
         self.__on_playback_started = on_playback_started
@@ -50,18 +47,6 @@ class WindowsPlaybackManager:
             for func in self.__on_playback_started:
                 func()
 
-        # Process to listen for the user's keystrokes and mouse clicks
-        self.__key_logger_process = multiprocessing.Process(target=self.key_logger_worker,
-                                                            name='Key Logger Worker Process')
-        self.__key_logger_process.daemon = True
-        self.__key_logger_process.start()
-
-        # Thread to listen to the output of the key logger process to see if the user pushed the exit key
-        self.__user_cancel_thread = threading.Thread(target=self.user_cancel_thread_worker,
-                                                     name='User Cancel Thread')
-        self.__user_cancel_thread.daemon = True
-        self.__user_cancel_thread.start()
-
         # Process that plays back the file
         self.__recorded_script_process = multiprocessing.Process(target=python_executor.execute_file,
                                                                  args=(self.file,),
@@ -75,6 +60,22 @@ class WindowsPlaybackManager:
         self.__script_ended_thread.daemon = True
         self.__script_ended_thread.start()
 
+    def on_mouse_event(self, event):
+        """
+        Handles recording mouse events.
+        :param event: The event that occurred.
+        """
+        # Do nothing
+        pass
+
+    def on_keyboard_event(self, event):
+        """
+        Routes keyboard events.
+        :param event: The event to route.
+        """
+        if event.Type == constants.EventType.KEYBOARD and not event.Injected and event.KeyID == 123:
+            self.release()
+
     def script_ended_thread_worker(self):
         """
         This function is launched in a separate 'Script Ended Thread' thread which polls to see if the
@@ -84,29 +85,6 @@ class WindowsPlaybackManager:
 
         # Terminate the terminator thread
         self.release()
-
-    def user_cancel_thread_worker(self):
-        """
-        This function is launched in a separate 'User Cancel Thread' thread which polls the output of the
-        'Key Logger Worker Process' process to determine if the user has requested the playback to stop.
-        """
-        while True:
-            ret = self.__key_logger_key_press_queue.get()
-            if ret is None:
-                return
-
-            if ret.Type != constants.EventType.MOUSE and not ret.Injected and ret.KeyID == 123:
-                self.release()
-                return
-
-    def key_logger_worker(self):
-        """
-        This function will be launched in a separate 'Key Logger Worker Process' process to allow the key/mouse logger
-        to allow it full use of the process' application thread.
-        """
-        rec = recorder.WindowsRecorder(event_queue=self.__key_logger_key_press_queue)
-        rec.start()
-        self.__key_logger_process_end_event.wait()
 
     def stop(self):
         """
@@ -140,7 +118,6 @@ class WindowsPlaybackManager:
         """
         win32api.SetCursorPos((x, y))
 
-        code = None
         if down:
             if left:
                 code = win32con.MOUSEEVENTF_LEFTDOWN
@@ -220,38 +197,12 @@ class WindowsPlaybackManager:
             recorded_script_process.terminate()
             self.__recorded_script_process = None
 
-        # Give everyone a chance to clean up
-        key_logger_process_end_event = self.__key_logger_process_end_event
-        if key_logger_process_end_event is not None:
-            key_logger_process_end_event.set()
-
-        key_logger_key_press_queue = self.__key_logger_key_press_queue
-        if key_logger_key_press_queue is not None:
-            key_logger_key_press_queue.put(None)
+        # Stop listening for key presses
+        if self.__key_logger is not None:
+            self.__key_logger.remove_listener(self)
+            self.__key_logger = None
 
         # Start releasing resources
-        key_logger_process = self.__key_logger_process
-        if key_logger_process is not None:
-            if key_logger_process.is_alive():
-                key_logger_process.join(WindowsPlaybackManager.DEFAULT_TIMEOUT)
-
-                if key_logger_process.is_alive():
-                    key_logger_process.terminate()
-            self.__key_logger_process = None
-
-        user_cancel_thread = self.__user_cancel_thread
-        if user_cancel_thread is not None:
-            if user_cancel_thread.is_alive():
-                try:
-                    # Will throw exception if user_cancel_thread is the one that called release
-                    user_cancel_thread.join(WindowsPlaybackManager.DEFAULT_TIMEOUT)
-
-                    if user_cancel_thread.is_alive():
-                        print("[Error] User Cancel Thread didn't end during timeout of: " +
-                              str(WindowsPlaybackManager.DEFAULT_TIMEOUT))
-                except:
-                    pass
-
         script_ended_thread = self.__script_ended_thread
         if script_ended_thread is not None:
             if script_ended_thread.is_alive():
@@ -264,11 +215,8 @@ class WindowsPlaybackManager:
                               str(WindowsPlaybackManager.DEFAULT_TIMEOUT))
                 except:
                     pass
+            self.__script_ended_thread = None
 
-        self.__key_logger_process_end_event = None
-        self.__key_logger_key_press_queue = None
-        self.__user_cancel_thread = None
-        self.__script_ended_thread = None
         self.file = None
 
         # Clear the listeners collections

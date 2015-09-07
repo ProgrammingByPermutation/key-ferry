@@ -20,7 +20,11 @@ if sys.platform == 'win32':
     base = 'Win32GUI'
 
 executables = [
-    # Executable('key_ferry.py', base=base) # Uncomment as soon as we figure out why the error output ruins the program
+    # Uncomment as soon as we figure out why the error output ruins the program.
+    # There is currently a bug between cx_Freeze and multiprocessing where launching a subprocess doesn't set the
+    # sys.stdout and sys.stderr so the user gets a nasty pop-up when you close the application. Tried setting them
+    # to file output myself but it didn't work.
+    # # Executable('key_ferry.py', icon='keyboard-space.ico', base=base)
     Executable('key_ferry.py', icon='keyboard-space.ico'),
     Executable('python_executor.py', icon='keyboard-space.ico')
 ]
@@ -29,5 +33,5 @@ setup(name='KeyFerry',
       version='0.1',
       description='Automation testing shit show.',
       executables=executables,
-      options={"build_exe": build_exe_options},
+      options={"build_exe": build_exe_options}, requires=['pyHook']
       )

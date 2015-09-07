@@ -28,31 +28,27 @@ class GlobalInfo:
         self.recorded_events = None  # A list of values outputted by the recording process
         self.playing_file = None  # The subprocess that is playing a file currently
         self.playing_back = False  # Indicates if we're currently playing back a file
+        self.input_listener = recorder.WindowsListener()
+        self.windows_recorder = None
 
 
 def record_click():
     """
     Click event for the record button.
     """
-
     # Swap the recording flag to the opposite
     global_info.recording = not global_info.recording
 
     if global_info.recording:
-        # If we're recording create a new process for the logger to run in, unfortunately the key logging technology
-        # that we're using and the GUI technology BOTH need to be in full use of the main application thread at all
-        # times. To get around a conflict, or some complex schema for hot swapping between them, we'll just launch
-        # the logger in a new process where it can hog the application thread to it's heart's content.
-        global_info.end_recording_event.clear()
-        process = multiprocessing.Process(target=logger_worker,
-                                          args=(global_info.end_recording_event, global_info.recorded_events),
-                                          name='Recorder Process')
-        process.start()
-
+        # Start the recording
+        global_info.windows_recorder = recorder.WindowsRecorder(global_info.recorded_events)
+        global_info.windows_recorder.start()
         global_info.window.on_record_started()
     else:
-        # If we've stopped recording, set the event handle to end the other process we spawned.
-        global_info.end_recording_event.set()
+        # Stop the recording
+        if global_info.windows_recorder is not None:
+            global_info.windows_recorder.release()
+            global_info.windows_recorder = None
 
         # Open a save file dialog so the user can save their script
         file = tkinter.filedialog.asksaveasfile(mode='w', defaultextension=".py")
@@ -62,19 +58,6 @@ def record_click():
             playback.WindowsPlaybackManager.create_executable_playback_file(file, global_info.recorded_events)
         global_info.recorded_events = manager.list()
         global_info.window.on_record_ended()
-
-
-def logger_worker(event, recording_list=None, callback_queue=None):
-    """
-    This function will be launched in a separate process to allow the key/mouse logger to allow it full use of the
-    process' application thread.
-    :param event: The event handle that will be signaled to tell the process to end.
-    :param recording_list: The interprocess collection to store the output in.
-    :param callback_queue: The queue to call when an input occurs.
-    """
-    rec = recorder.WindowsRecorder(recording_list, callback_queue)
-    rec.start()
-    event.wait()
 
 
 def on_playback_started():
@@ -134,6 +117,9 @@ if __name__ == '__main__':
 
     if global_info.playing_file is not None:
         global_info.playing_file.stop()
+
+    if global_info.input_listener is not None:
+        global_info.input_listener.release()
 
         # TODO: Combine keyboard events together to save space
         # Text to speech that made me laugh

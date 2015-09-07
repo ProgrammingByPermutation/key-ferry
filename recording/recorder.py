@@ -1,10 +1,9 @@
 from __future__ import print_function
 import datetime
 import threading
-import win32api
+import multiprocessing
 
 import pyHook
-import win32con
 
 import pythoncom
 
@@ -30,12 +29,25 @@ class WindowsListener:
         # TODO: Supposedly we can handle this much better using a metaclass. Should revisit once I understand them.
         if not self.__initialized:
             self.__initialized = True
+
+            # Create the list of input listeners
             self.__listeners = []
-            self.__connected = False
-            self.__thread = threading.Thread(target=self.__thread_target, name='Hook Manager\'s Thread')
-            self.__thread.daemon = True
-            self.__thread.start()
-            self.__keys_held_down = []
+
+            # Create the list that will pass information from the hook manager's
+            # process to this process.
+            manager = multiprocessing.Manager()
+            self.__inputs_queue = manager.Queue()
+
+            # Create the process that will listen for inputs from the user.
+            self.__hook_manager_process = multiprocessing.Process(target=self.hook_manager_process,
+                                                                  name='Hook Manager Process')
+            self.__hook_manager_process.daemon = True
+            self.__hook_manager_process.start()
+
+            # Create the thread for listening for inputs and passing them to the listeners.
+            self.__input_listener_thread = threading.Thread(target=self.__hook_listener, name='Input Listener Thread')
+            self.__input_listener_thread.daemon = True
+            self.__input_listener_thread.start()
 
     def __new__(cls, *args, **kwargs):
         """
@@ -50,32 +62,48 @@ class WindowsListener:
             cls.__initialized = False
         return cls.__instance
 
-    def __thread_target(self):
+    def __hook_listener(self):
         """
-        Hook Manager thread's logic responsible for receiving inputs from the keyboard and mouse.
+        This function is launched in a separate 'User Cancel Thread' thread which polls the output of the
+        'Key Logger Worker Process' process to determine if the user has requested the playback to stop.
+        """
+        while True:
+            event = self.__inputs_queue.get()
+            if event is None:
+                return
+
+            if event.Type == constants.EventType.KEYBOARD:
+                for x in self.__listeners:
+                    x.on_keyboard_event(event)
+            elif event.Type == constants.EventType.MOUSE:
+                for x in self.__listeners:
+                    x.on_mouse_event(event)
+
+    def hook_manager_process(self):
+        """
+        Hook Manager process' logic responsible for receiving inputs from the keyboard and mouse.
         """
 
         # Save thread identifier
-        self.__main_thread_id = win32api.GetCurrentThreadId()
+        # self.__main_thread_id = win32api.GetCurrentThreadId()
 
         # Create the hook manager
-        self.__hook_manager = pyHook.HookManager()
+        hook_manager = pyHook.HookManager()
 
         # Register mouse and keyboard events globally
-        self.__hook_manager.MouseLeftDown = lambda event: WindowsListener.__on_mouse_event(self, event,
-                                                                                           is_left=True, is_down=True)
-        self.__hook_manager.MouseLeftUp = lambda event: WindowsListener.__on_mouse_event(self, event,
-                                                                                         is_left=True, is_up=True)
-        self.__hook_manager.MouseRightDown = lambda event: WindowsListener.__on_mouse_event(self, event,
-                                                                                            is_right=True, is_down=True)
-        self.__hook_manager.MouseRightUp = lambda event: WindowsListener.__on_mouse_event(self, event,
-                                                                                          is_right=True, is_up=True)
-        self.__hook_manager.KeyDown = lambda event: WindowsListener.__on_keyboard_event(self, event, True)
-        self.__hook_manager.KeyUp = lambda event: WindowsListener.__on_keyboard_event(self, event, False)
+        hook_manager.MouseLeftDown = lambda event: WindowsListener.__on_mouse_event(self, event, is_left=True,
+                                                                                    is_down=True)
+        hook_manager.MouseLeftUp = lambda event: WindowsListener.__on_mouse_event(self, event, is_left=True, is_up=True)
+        hook_manager.MouseRightDown = lambda event: WindowsListener.__on_mouse_event(self, event, is_right=True,
+                                                                                     is_down=True)
+        hook_manager.MouseRightUp = lambda event: WindowsListener.__on_mouse_event(self, event, is_right=True,
+                                                                                   is_up=True)
+        hook_manager.KeyDown = lambda event: WindowsListener.__on_keyboard_event(self, event, True)
+        hook_manager.KeyUp = lambda event: WindowsListener.__on_keyboard_event(self, event, False)
 
         # Hook into the mouse and keyboard events
-        self.__hook_manager.HookMouse()
-        self.__hook_manager.HookKeyboard()
+        hook_manager.HookMouse()
+        hook_manager.HookKeyboard()
 
         # Suspend the thread indefinitely waiting for callbacks
         pythoncom.PumpMessages()
@@ -90,6 +118,7 @@ class WindowsListener:
         :param is_up: The button was released.
         :return: True indicating the event should be passed to other event handlers.
         """
+        event.Type = constants.EventType.MOUSE
         event.Is_Left = is_left
         event.Is_Right = is_right
         event.Is_Down = is_down
@@ -97,8 +126,7 @@ class WindowsListener:
         event.Is_Double = False
 
         # Notify listeners
-        for x in self.__listeners:
-            x.on_mouse_event(event)
+        self.__inputs_queue.put(event)
 
         # print('Is_Left', event.Is_Left)
         # print('Is_Right', event.Is_Right)
@@ -126,11 +154,11 @@ class WindowsListener:
         :param is_down: The key press was down.
         :return: True indicating the event should be passed to other event handlers.
         """
+        event.Type = constants.EventType.KEYBOARD
         event.Is_Down = is_down
 
         # Notify listeners
-        for x in self.__listeners:
-            x.on_keyboard_event(event)
+        self.__inputs_queue.put(event)
 
         # print('Is_Down:', event.Is_Down)
         # print('MessageName:', event.MessageName)
@@ -182,11 +210,16 @@ class WindowsListener:
         Releases the resources used by the current instance of the class.
         """
         self.__listeners.clear()
-        win32api.PostThreadMessage(self.__main_thread_id, win32con.WM_QUIT, 0, 0)
-        self.__hook_manager.UnhookMouse()
-        self.__hook_manager.UnhookKeyboard()
-        self.__thread.join()
         self.__instance = None
+        self.__initialized = False
+        self.__inputs_queue.put(None)
+
+        # These need to happen on inside of the hook manager process...but we don't care about
+        # cleaning them up because we only clean up the hook manager's process when the program ends.
+        # So for now we won't further complicate the code and take the path of apathy.
+        # # win32api.PostThreadMessage(self.__main_thread_id, win32con.WM_QUIT, 0, 0)
+        # # self.__hook_manager.UnhookMouse()
+        # # self.__hook_manager.UnhookKeyboard()
 
 
 class WindowsRecorder:
@@ -224,9 +257,6 @@ class WindowsRecorder:
         Handles recording mouse events.
         :param event: The event that occurred.
         """
-        # Set the type
-        event.Type = constants.EventType.MOUSE
-
         # Record the event
         self.__record_event(event)
 
@@ -251,7 +281,6 @@ class WindowsRecorder:
             self.__keys_held_down.remove(current_held_key[0])
 
             # Set the type
-            event.Type = constants.EventType.KEYBOARD
             event.Is_Held_Down = False
             event.Is_Release = True
 
@@ -264,7 +293,6 @@ class WindowsRecorder:
         :param event: The event that occurred.
         """
         # Set the type
-        event.Type = constants.EventType.KEYBOARD
         event.Is_Held_Down = False
         event.Is_Release = False
 
@@ -319,13 +347,13 @@ class WindowsRecorder:
         """
         Releases the resources used by the current instance of the class.
         """
-        if None != self.__listener:
+        if self.__listener is not None:
             self.stop()
             self.__listener = None
 
-        if None != self.__time_since_last_command:
+        if self.__time_since_last_command is not None:
             self.__time_since_last_command = None
 
-        if None != self.__keys_held_down:
+        if self.__keys_held_down is not None:
             self.__keys_held_down.clear()
             self.__keys_held_down = None
