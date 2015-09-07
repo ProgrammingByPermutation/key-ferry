@@ -31,7 +31,7 @@ executables = [
 
 setup(name='KeyFerry',
       version='0.1',
-      description='Automation testing shit show.',
+      description='Definitely not the NSA...',
       executables=executables,
       options={"build_exe": build_exe_options}, requires=['pyHook']
       )
