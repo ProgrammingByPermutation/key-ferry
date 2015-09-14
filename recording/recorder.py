@@ -2,11 +2,13 @@ from __future__ import print_function
 import datetime
 import threading
 import multiprocessing
+import os
 
 import pyHook
 
 import pythoncom
 
+import win32process
 import recording.constants as constants
 import recording.exceptions as exceptions
 
@@ -322,10 +324,16 @@ class WindowsRecorder:
         Record the passed in event.
         :param event: The event to record.
         """
-        # Set the time
+        # Set the time, must be done first since we're using the ill advised datetime.now call.
+        # TODO: Learn more about the time since epoch. When exactly is epoch relative to?
         curr_time = datetime.datetime.now()
         event.Time = (curr_time - self.__time_since_last_command).total_seconds()
         self.__time_since_last_command = curr_time
+
+        # If this message is about something happening in our process, skip it
+        _, events_pid = win32process.GetWindowThreadProcessId(event.Window)
+        if events_pid == os.getpid():
+            return
 
         # Add to the events lists
         for func in self.__recording_callbacks:
