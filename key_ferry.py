@@ -41,7 +41,8 @@ def record_click():
 
     if global_info.recording:
         # Start the recording
-        global_info.windows_recorder = recorder.WindowsRecorder(global_info.recorded_events)
+        process_to_ignore = os.getpid() if global_info.window.should_ignore_own_window.get() else None
+        global_info.windows_recorder = recorder.WindowsRecorder(global_info.recorded_events, process_to_ignore)
         global_info.windows_recorder.start()
         global_info.window.on_record_started()
     else:

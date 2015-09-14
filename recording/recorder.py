@@ -233,24 +233,22 @@ class WindowsRecorder:
     __ALT_KEYS = [164, 165]
     __DEL = 46
 
-    def __init__(self, events_collection=None, event_queue=None):
+    def __init__(self, events_collection, process_to_ignore):
         """
         Initializes a new instance of the WindowsRecorder class.
 
         Attributes:
-            events: The list of events that have been recorded.
+            events_collection: The list of events that have been recorded.
+            process_to_ignore: If not set to None, the process that should be ignored when recording.
         """
         self.__listener = WindowsListener()
         self.__keys_held_down = []
         self.__recording_callbacks = []
+        self.__process_to_ignore = process_to_ignore
 
         if events_collection is not None:
             self.events_collection = events_collection
             self.__recording_callbacks.append(lambda event: self.events_collection.append(event))
-
-        if event_queue is not None:
-            self.events_queue = event_queue
-            self.__recording_callbacks.append(lambda event: self.events_queue.put(event))
 
         self.__time_since_last_command = datetime.datetime.now()
 
@@ -259,6 +257,12 @@ class WindowsRecorder:
         Handles recording mouse events.
         :param event: The event that occurred.
         """
+        # If this message is about something happening in our process, skip it
+        if self.__process_to_ignore is not None:
+            _, events_pid = win32process.GetWindowThreadProcessId(event.Window)
+            if events_pid == os.getpid():
+                return
+
         # Record the event
         self.__record_event(event)
 
@@ -329,11 +333,6 @@ class WindowsRecorder:
         curr_time = datetime.datetime.now()
         event.Time = (curr_time - self.__time_since_last_command).total_seconds()
         self.__time_since_last_command = curr_time
-
-        # If this message is about something happening in our process, skip it
-        _, events_pid = win32process.GetWindowThreadProcessId(event.Window)
-        if events_pid == os.getpid():
-            return
 
         # Add to the events lists
         for func in self.__recording_callbacks:

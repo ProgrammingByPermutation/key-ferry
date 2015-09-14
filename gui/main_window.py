@@ -20,10 +20,21 @@ class MainWindow:
         # currently located in, this call fails.
         if os.path.isfile('keyboard-space.ico'):
             self.window.iconbitmap('keyboard-space.ico')
+
+        # Variables
+        self.should_ignore_own_window = tkinter.IntVar(value=1)
+
+        # GUI Elements
         self.record_button = tkinter.Button(self.window, text='Record')
         self.play_button = tkinter.Button(self.window, text='Play File')
+        self.recording_options_group = tkinter.LabelFrame(self.window, text="Recording Options", padx=5, pady=5)
+        self.recording_options_record_own_window_checkbutton = tkinter.Checkbutton(self.recording_options_group,
+                                                                                   text="Ignore this Process",
+                                                                                   variable=self.should_ignore_own_window)
         self.record_button.grid(column="0", row="0", padx="15")
         self.play_button.grid(column="1", row="0", padx="15")
+        self.recording_options_group.grid(column="0", row="1", columnspan="2")
+        self.recording_options_record_own_window_checkbutton.grid(column="0", row="0")
 
     def show(self):
         """
@@ -50,6 +61,7 @@ class MainWindow:
         Handles logic related to the playback of a file starting.
         """
         self.play_button.config(state=tkinter.DISABLED)
+        self.recording_options_record_own_window_checkbutton.config(state=tkinter.DISABLED)
         self.record_button.config(text='Stop Recording')
 
     def on_record_ended(self):
@@ -57,4 +69,5 @@ class MainWindow:
         Handles logic related to the playback of a file ending.
         """
         self.play_button.config(state=tkinter.NORMAL)
+        self.recording_options_record_own_window_checkbutton.config(state=tkinter.NORMAL)
         self.record_button.config(text='Record')
