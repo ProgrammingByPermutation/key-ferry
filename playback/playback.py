@@ -1,11 +1,11 @@
-import os
-import threading
 import inspect
 import multiprocessing
+import os
+import threading
+import win32api
 
 import win32con
 
-import win32api
 import python_executor
 import recording.constants as constants
 import utilities.listeners as listeners
@@ -17,7 +17,6 @@ class WindowsPlaybackManager:
     """
     # TODO: Thread-safe object
     DEFAULT_TIMEOUT = 30
-    EXTENDED_COUNT = 0
 
     def __init__(self, file, on_playback_started=None, on_playback_ended=None):
         """
@@ -103,15 +102,10 @@ class WindowsPlaybackManager:
         """
         if is_down_only:
             win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_EXTENDEDKEY, 0)
-            WindowsPlaybackManager.EXTENDED_COUNT += 1
         elif is_up_only:
-            win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_KEYUP, 0)
-            WindowsPlaybackManager.EXTENDED_COUNT -= 1
+            win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_EXTENDEDKEY | win32con.KEYEVENTF_KEYUP, 0)
         else:
-            if WindowsPlaybackManager.EXTENDED_COUNT > 0:
-                win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_EXTENDEDKEY, 0)
-            else:
-                win32api.keybd_event(key_id, 0, 0, 0)
+            win32api.keybd_event(key_id, 0, 0, 0)
 
     @staticmethod
     def mouse_click(x, y, down, left):
