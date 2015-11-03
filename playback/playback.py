@@ -2,13 +2,13 @@ import os
 import threading
 import inspect
 import multiprocessing
-import win32api
 
 import win32con
 
+import win32api
 import python_executor
 import recording.constants as constants
-import recording.recorder as recorder
+import utilities.listeners as listeners
 
 
 class WindowsPlaybackManager:
@@ -17,6 +17,7 @@ class WindowsPlaybackManager:
     """
     # TODO: Thread-safe object
     DEFAULT_TIMEOUT = 30
+    EXTENDED_COUNT = 0
 
     def __init__(self, file, on_playback_started=None, on_playback_ended=None):
         """
@@ -28,7 +29,7 @@ class WindowsPlaybackManager:
         """
 
         # Create the interprocess list that will record all our keystrokes and mouse clicks
-        self.__key_logger = recorder.WindowsListener()
+        self.__key_logger = listeners.WindowsListener()
         self.__key_logger.add_listener(self)
         self.__recorded_script_process = None
         self.__script_ended_thread = None
@@ -102,10 +103,15 @@ class WindowsPlaybackManager:
         """
         if is_down_only:
             win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_EXTENDEDKEY, 0)
+            WindowsPlaybackManager.EXTENDED_COUNT += 1
         elif is_up_only:
-            win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_EXTENDEDKEY | win32con.KEYEVENTF_KEYUP, 0)
+            win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_KEYUP, 0)
+            WindowsPlaybackManager.EXTENDED_COUNT -= 1
         else:
-            win32api.keybd_event(key_id, 0, 0, 0)
+            if WindowsPlaybackManager.EXTENDED_COUNT > 0:
+                win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_EXTENDEDKEY, 0)
+            else:
+                win32api.keybd_event(key_id, 0, 0, 0)
 
     @staticmethod
     def mouse_click(x, y, down, left):

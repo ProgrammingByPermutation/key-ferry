@@ -8,6 +8,7 @@ import playback.playback as playback
 import gui.main_window as main_window
 import recording.recorder as recorder
 import recording.constants as constants
+import utilities.listeners as listeners
 
 EventType = constants.EventType
 
@@ -28,7 +29,7 @@ class GlobalInfo:
         self.recorded_events = None  # A list of values outputted by the recording process
         self.playing_file = None  # The subprocess that is playing a file currently
         self.playing_back = False  # Indicates if we're currently playing back a file
-        self.input_listener = recorder.WindowsListener()
+        self.input_listener = listeners.WindowsListener()
         self.windows_recorder = None
 
 
@@ -92,12 +93,10 @@ def play_file():
         if file is not None and os.path.exists(file):
             global_info.playing_file = playback.WindowsPlaybackManager(file, [on_playback_started], [on_playback_ended])
             global_info.playing_file.start()
-            global_info.playing_back = not global_info.playing_back
     else:
         # Stop the playback
         global_info.playing_file.stop()
         global_info.playing_file = None
-        global_info.playing_back = not global_info.playing_back
 
 
 if __name__ == '__main__':
