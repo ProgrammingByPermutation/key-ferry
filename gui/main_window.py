@@ -1,7 +1,7 @@
-import tkinter
-import tkinter.messagebox
-import tkinter.filedialog
 import os
+import tkinter
+import tkinter.filedialog
+import tkinter.messagebox
 
 import recording.constants as constants
 
@@ -31,10 +31,38 @@ class MainWindow:
         self.recording_options_record_own_window_checkbutton = tkinter.Checkbutton(self.recording_options_group,
                                                                                    text="Ignore this Process",
                                                                                    variable=self.should_ignore_own_window)
+        # self.macro_group = tkinter.LabelFrame(self.window, text="Macros", padx=5, pady=5)
+        # self.macro_current_macros = ttk.Treeview(self.macro_group)
+        # self.macro_key_label = tkinter.Label(self.macro_group, text="Key:")
+        # self.macro_key_text = tkinter.Entry(self.macro_group)
+        # self.macro_file_label = tkinter.Label(self.macro_group, text="File:")
+        # self.macro_file_text = tkinter.Entry(self.macro_group)
+        # self.macro_add_button = tkinter.Button(self.macro_group, text="Add")
+        # self.macro_delete_button = tkinter.Button(self.macro_group, text="Delete")
+        #
+        # # Configure Controls
+        # self.macro_current_macros["show"] = "headings"
+        # self.macro_current_macros["columns"] = ("Key", "File")
+        # self.macro_current_macros.heading("Key", text="Key")
+        # self.macro_current_macros.heading("File", text="File")
+        #
+        # # Grid them
+        # # for x in range(100):
+        # #     tkinter.Grid.columnconfigure(x, weight=1)
+        # #     tkinter.Grid.rowconfigure(x, weight=1)
+        #
         self.record_button.grid(column="0", row="0", padx="15")
         self.play_button.grid(column="1", row="0", padx="15")
         self.recording_options_group.grid(column="0", row="1", columnspan="2")
+        # self.macro_group.grid(column="0", row="2", columnspan="2")
         self.recording_options_record_own_window_checkbutton.grid(column="0", row="0")
+        # self.macro_current_macros.grid(column="0", row="0", columnspan="6")
+        # self.macro_key_label.grid(column="0", row="1")
+        # self.macro_key_text.grid(column="1", row="1")
+        # self.macro_file_label.grid(column="2", row="1")
+        # self.macro_file_text.grid(column="3", row="1")
+        # self.macro_add_button.grid(column="4", row="1")
+        # self.macro_delete_button.grid(column="5", row="1")
 
     def show(self):
         """

@@ -1,8 +1,8 @@
 # Creates an executable when 'setup.py build' is executed
 
-import sys
-import site
 import os
+import site
+import sys
 
 from cx_Freeze import setup, Executable
 
@@ -11,6 +11,8 @@ site_packages = next((x for x in site.getsitepackages() if 'site-packages' in x)
 # There is an error in the way cx_freeze grabs dependencies, for whatever reason it misses _cpyHook.pyd. Technically,
 # the following "zip_includes" doesn't work. I just added it for fun. The "include_files" on the other hand does work.
 build_exe_options = {
+    # "packages": ["PIL", "win32gui"],
+    "packages": ["win32gui"],
     "zip_includes": [(os.path.join(site_packages, "pyHook", "_cpyHook.pyd"), os.path.join("pyHook", "_cpyHook.pyd"))],
     "include_files": [os.path.join(site_packages, "pyHook"), "keyboard-space.ico"]
 }

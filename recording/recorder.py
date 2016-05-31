@@ -1,8 +1,9 @@
 from __future__ import print_function
+
 import datetime
 import os
-
 import win32process
+
 import recording.exceptions as exceptions
 import utilities.listeners as listeners
 
@@ -13,23 +14,26 @@ class WindowsRecorder:
     """
     Hooks onto Windows keyboard and mouse events, storing a list of recorded events.
     """
-    __HOLDABLE_KEYS = [160, 161, 162, 163, 164, 165, 91]
+    # Left Shift, Right Shift, Left Control, Right Control, Left Alt, Right Alt
+    __HOLDABLE_KEYS = [160, 161, 162, 163, 164, 165]
     __CTRL_KEYS = [162, 163]
     __ALT_KEYS = [164, 165]
+    __SHIFT_KEYS = [160, 161]
     __DEL = 46
 
     def __init__(self, events_collection, process_to_ignore):
         """
         Initializes a new instance of the WindowsRecorder class.
-
-        Attributes:
-            events_collection: The list of events that have been recorded.
-            process_to_ignore: If not set to None, the process that should be ignored when recording.
+        :param events_collection: The list of events that have been recorded.
+        :param process_to_ignore: If not set to None, the process that should be ignored when recording.
         """
         self.__listener = listeners.WindowsListener()
         self.__keys_held_down = []
         self.__recording_callbacks = []
         self.__process_to_ignore = process_to_ignore
+        self.__shift_is_held = False
+        self.__ctrl_is_held = False
+        self.__alt_is_held = False
 
         if events_collection is not None:
             self.events_collection = events_collection
@@ -70,30 +74,22 @@ class WindowsRecorder:
 
         if len(current_held_key) != 0:
             self.__keys_held_down.remove(current_held_key[0])
-
-            # Set the type
-            event.Is_Held_Down = False
-            event.Is_Release = True
-
-            # Record event
-            self.__record_event(event)
+            self.__set_held_keys()
 
     def on_key_down_event(self, event):
         """
         Handles recording key down events. Almost all keyboard recording is in the from of key down presses.
         :param event: The event that occurred.
         """
-        # Set the type
-        event.Is_Held_Down = False
-        event.Is_Release = False
 
         # If it's a holdable key then wait for the key up
         if event.KeyID in WindowsRecorder.__HOLDABLE_KEYS:
             # If we already recorded this key, don't re-add it to the collection
             if any(key.KeyID == event.KeyID for key in self.__keys_held_down):
                 return
-            event.Is_Held_Down = True
             self.__keys_held_down.append(event)
+            self.__set_held_keys()
+            return
 
         # If this is delete, make sure they aren't holding CTRL + ALT. If they are then windows already stole focus
         # and choked our release keys. We need to record them ourselves so we don't get into a state.
@@ -101,12 +97,18 @@ class WindowsRecorder:
             ctrl_intersection = [event for event in self.__keys_held_down if event.KeyID in self.__CTRL_KEYS]
             alt_intersection = [event for event in self.__keys_held_down if event.KeyID in self.__ALT_KEYS]
             if len(ctrl_intersection) > 0 and len(alt_intersection) > 0:
-                [self.on_key_up_event(ctrl_event) for ctrl_event in ctrl_intersection]
-                [self.on_key_up_event(alt_event) for alt_event in alt_intersection]
+                self.__ctrl_is_held = False
+                self.__alt_is_held = False
             return
 
         # Record the event
         self.__record_event(event)
+
+    def __set_held_keys(self):
+        keys_held = {key.KeyID for key in self.__keys_held_down}
+        self.__alt_is_held = len(set(self.__ALT_KEYS) & keys_held) > 0
+        self.__ctrl_is_held = len(set(self.__CTRL_KEYS) & keys_held) > 0
+        self.__shift_is_held = len(set(self.__SHIFT_KEYS) & keys_held) > 0
 
     def __record_event(self, event):
         """
@@ -118,6 +120,9 @@ class WindowsRecorder:
         curr_time = datetime.datetime.now()
         event.Time = (curr_time - self.__time_since_last_command).total_seconds()
         self.__time_since_last_command = curr_time
+        event.Is_Shift = self.__shift_is_held
+        event.Is_Ctrl = self.__ctrl_is_held
+        event.Is_Alt = self.__alt_is_held
 
         # Add to the events lists
         for func in self.__recording_callbacks:

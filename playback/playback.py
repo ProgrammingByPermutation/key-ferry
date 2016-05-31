@@ -4,10 +4,12 @@ import os
 import threading
 import win32api
 
+import win32com.client
 import win32con
 
 import python_executor
 import recording.constants as constants
+import utilities.converter as converter
 import utilities.listeners as listeners
 
 
@@ -35,6 +37,7 @@ class WindowsPlaybackManager:
         self.__released = False
         self.__on_playback_started = on_playback_started
         self.__on_playback_ended = on_playback_ended
+        self.__shell = win32com.client.Dispatch("WScript.Shell")
         self.file = file
 
     def start(self):
@@ -93,19 +96,24 @@ class WindowsPlaybackManager:
         self.release()
 
     @staticmethod
-    def key_press(key_id, is_down_only=False, is_up_only=False):
+    def key_press(key):
         """
         Static method that simulates a keyboard press.
-        :param key_id: The key identifier to send to windows
-        :param is_down_only: Indicates if the key press is pressing down and holding the key.
-        :param is_up_only: Indicates if the key press is releasing a previously held down key.
+        :param key: The key identifier to send to windows
         """
-        if is_down_only:
-            win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_EXTENDEDKEY, 0)
-        elif is_up_only:
-            win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_EXTENDEDKEY | win32con.KEYEVENTF_KEYUP, 0)
-        else:
-            win32api.keybd_event(key_id, 0, 0, 0)
+        try:
+            shell = win32com.client.Dispatch("WScript.Shell")
+            shell.SendKeys(key)
+        except Exception as e:
+            e_msg = win32api.FormatMessage(e.excepinfo[5])
+            print("Failure replaying the '", key, "' key with the following exception: ", e_msg, end='', sep='')
+
+            # if is_down_only:
+            #     win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_EXTENDEDKEY, 0)
+            # elif is_up_only:
+            #     win32api.keybd_event(key_id, 0, win32con.KEYEVENTF_EXTENDEDKEY | win32con.KEYEVENTF_KEYUP, 0)
+            # else:
+            #     win32api.keybd_event(key_id, 0, 0, 0)
 
     @staticmethod
     def mouse_click(x, y, down, left):
@@ -155,7 +163,7 @@ class WindowsPlaybackManager:
         # Find the longest string
         max_length = 0
 
-        # Gather events in executable form
+        # Gather events in script form
         for x in range(0, len(events)):
             event = curr = events[x]
             if event.Type == constants.EventType.MOUSE:
@@ -166,8 +174,8 @@ class WindowsPlaybackManager:
                 if length > max_length:
                     max_length = length + 4
             elif event.Type == constants.EventType.KEYBOARD:
-                event.Executable = 'WindowsPlaybackManager.key_press(%s, %s, %s)' % (
-                    event.KeyID, event.Is_Held_Down, event.Is_Release)
+                converted_key = converter.to_send_key(event.Key, event.Is_Ctrl, event.Is_Alt, event.Is_Shift)
+                event.Executable = 'WindowsPlaybackManager.key_press("%s")' % (converted_key or event.Key)
 
                 length = len(event.Executable)
                 if length > max_length:
@@ -180,7 +188,15 @@ class WindowsPlaybackManager:
             if event.Type == constants.EventType.MOUSE:
                 print('%-*s%s' % (max_length, event.Executable, "# Window: %s" % event.WindowName), file=file)
             elif event.Type == constants.EventType.KEYBOARD:
-                print('%-*s%s' % (max_length, event.Executable, "# Key: %s " % event.Key), file=file)
+                message = ''
+                if event.Is_Shift:
+                    message += "Shift + "
+                if event.Is_Alt:
+                    message += "Alt + "
+                if event.Is_Ctrl:
+                    message += "Ctrl + "
+
+                print('%-*s%s' % (max_length, event.Executable, "# Key: %s%s " % (message, event.Key)), file=file)
 
     def release(self):
         """
