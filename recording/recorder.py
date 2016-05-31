@@ -81,7 +81,6 @@ class WindowsRecorder:
         Handles recording key down events. Almost all keyboard recording is in the from of key down presses.
         :param event: The event that occurred.
         """
-
         # If it's a holdable key then wait for the key up
         if event.KeyID in WindowsRecorder.__HOLDABLE_KEYS:
             # If we already recorded this key, don't re-add it to the collection
@@ -105,6 +104,9 @@ class WindowsRecorder:
         self.__record_event(event)
 
     def __set_held_keys(self):
+        """
+        Sets variables indicating if a modifier key is being held down.
+        """
         keys_held = {key.KeyID for key in self.__keys_held_down}
         self.__alt_is_held = len(set(self.__ALT_KEYS) & keys_held) > 0
         self.__ctrl_is_held = len(set(self.__CTRL_KEYS) & keys_held) > 0
