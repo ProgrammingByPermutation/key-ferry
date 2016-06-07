@@ -163,6 +163,9 @@ class WindowsPlaybackManager:
         # Find the longest string
         max_length = 0
 
+        # Pre-process the events
+        events = WindowsPlaybackManager.pre_process_events(events)
+
         # Gather events in script form
         for x in range(0, len(events)):
             event = curr = events[x]
@@ -174,7 +177,8 @@ class WindowsPlaybackManager:
                 if length > max_length:
                     max_length = length + 4
             elif event.Type == constants.EventType.KEYBOARD:
-                converted_key = converter.to_send_key(event.Key, event.Is_Ctrl, event.Is_Alt, event.Is_Shift)
+                converted_key = converter.to_send_key(event.Key, event.Is_Ctrl, event.Is_Alt, event.Is_Shift,
+                                                      event.Times)
                 event.Executable = 'WindowsPlaybackManager.key_press("%s")' % (converted_key or event.Key)
 
                 length = len(event.Executable)
@@ -197,6 +201,46 @@ class WindowsPlaybackManager:
                     message += "Ctrl + "
 
                 print('%-*s%s' % (max_length, event.Executable, "# Key: %s%s " % (message, event.Key)), file=file)
+
+    @staticmethod
+    def pre_process_events(events):
+        """
+        Pre-processes the list of events.
+        :param events: The events that need to be pre-processed.
+        :return: The new list of events.
+        """
+        results = []
+        previous_alt_tab = False
+
+        # Iterate over the collection combining events that need to be performed in a single operation.
+        for event in events:
+            # Add attributes we'll use later.
+            event.Times = 1
+
+            if event.Type == constants.EventType.KEYBOARD:
+                # If we're ALT + TABing we need to combine the TAB sending into a single line. If we fail to
+                # do this the key playback will consider each individual TAB a single TAB through the currently active
+                # application's controls and not switch applications.
+                if event.Is_Alt and event.Key.upper() == "TAB":
+                    if not previous_alt_tab:
+                        previous_alt_tab = True
+                    else:
+                        previous.Times += 1
+                        continue
+                else:
+                    previous_alt_tab = False
+
+                # The event list will contain key up events for CTRL, ALT, and SHIFT. We want to filter these out.
+                if not event.Is_Down:
+                    previous = event
+                    continue
+            else:
+                previous_alt_tab = False
+
+            results.append(event)
+            previous = event
+
+        return results
 
     def release(self):
         """

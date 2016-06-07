@@ -75,6 +75,7 @@ class WindowsRecorder:
         if len(current_held_key) != 0:
             self.__keys_held_down.remove(current_held_key[0])
             self.__set_held_keys()
+            self.__record_event(event)
 
     def on_key_down_event(self, event):
         """

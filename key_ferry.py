@@ -1,13 +1,13 @@
 import multiprocessing
 import os
 import tkinter
-import tkinter.messagebox
 import tkinter.filedialog
+import tkinter.messagebox
 
-import playback.playback as playback
 import gui.main_window as main_window
-import recording.recorder as recorder
+import playback.playback as playback
 import recording.constants as constants
+import recording.recorder as recorder
 import utilities.listeners as listeners
 
 EventType = constants.EventType
@@ -58,6 +58,7 @@ def record_click():
         # If the cancel button wasn't pressed, save the script
         if file is not None:
             playback.WindowsPlaybackManager.create_executable_playback_file(file, global_info.recorded_events)
+            file.close()
         global_info.recorded_events = manager.list()
         global_info.window.on_record_ended()
 
