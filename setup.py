@@ -4,6 +4,11 @@ import os
 import site
 import sys
 
+import os
+
+os.environ['TCL_LIBRARY'] = r"C:\Software\Python\Python3.6.2\tcl\tcl8.6"
+os.environ['TK_LIBRARY'] = r"C:\Software\Python\Python3.6.2\tcl\tk8.6"
+
 from cx_Freeze import setup, Executable
 
 site_packages = next((x for x in site.getsitepackages() if 'site-packages' in x), None)
@@ -13,8 +18,10 @@ site_packages = next((x for x in site.getsitepackages() if 'site-packages' in x)
 build_exe_options = {
     # "packages": ["PIL", "win32gui"],
     "packages": ["win32gui"],
-    "zip_includes": [(os.path.join(site_packages, "pyHook", "_cpyHook.pyd"), os.path.join("pyHook", "_cpyHook.pyd"))],
-    "include_files": [os.path.join(site_packages, "pyHook"), "keyboard-space.ico"]
+    "zip_includes": [(os.path.join(site_packages, "pyHook", "_cpyHook.cp36-win32.pyd"), os.path.join("pyHook", "_cpyHook.cp36-win32.pyd"))],
+    "include_files": [os.path.join(site_packages, "pyHook"), "keyboard-space.ico", r"C:\Software\Python\Python3.6.2\DLLs\tcl86t.dll",
+                      r"C:\Software\Python\Python3.6.2\DLLs\tk86t.dll", r"C:\Software\Python\Python3.6.2\Lib\site-packages\pywin32_system32\pythoncom36.dll",
+                      r"C:\Software\Python\Python3.6.2\Lib\site-packages\pywin32_system32\pywintypes36.dll",]
 }
 
 base = None
